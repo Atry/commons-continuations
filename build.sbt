@@ -21,13 +21,17 @@ scalaVersion := "2.10.0-M2"
 
 crossScalaVersions := Seq("2.10.0-M2")
 
-resolvers += "zero-log-repo" at "http://maven.zero-log.googlecode.com/hg/"
+resolvers +=
+  "Atry's maven repository on github" at "http://atry.github.com/maven/"
 
 libraryDependencies <+= scalaVersion { sv =>
   "com.dongxiguo" % ("zero-log_" + sv) % "0.1.0"
 }
 
 version := "0.1-SNAPSHOT"
+
+publishTo :=
+  Some(Resolver.file("Github Pages", file("../atry.github.com/maven")))
 
 pomExtra <<= scalaVersion { version =>
   <properties>
