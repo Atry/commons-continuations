@@ -6,7 +6,7 @@
 
 	import com.dongxiguo.commons.continuations.CollectionConverters._
 	val mySeq = Seq("foo", "bar", "baz")
-	for (element in mySeq.asSuspendable.par) yield {
+	val results = for (element in mySeq.asSuspendable.par) yield {
 	  shiftUnit("Result from a suspendable expression: " + element)
 	}
 
