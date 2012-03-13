@@ -215,11 +215,6 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
   }
 
   /**
-   *
-   */
-
-  /**
-   * TODO: 以前用execution.delay能把几个包连在一起发送，现在改用post就不行了
    * @throws IllegalStateException <code>SocketWritingQueue</code>已经关闭
    */
   @tailrec
