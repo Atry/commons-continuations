@@ -17,7 +17,8 @@
 
 ## Use continuation with NIO2 socket.
 
-See https://github.com/Atry/commons-continuations/blob/master/src/main/scala/com/dongxiguo/commons/continuations/io/AsynchronousInputStream.scala and https://github.com/Atry/commons-continuations/blob/master/src/main/scala/com/dongxiguo/commons/continuations/io/SocketWritingQueue.scala
+See [AsynchronousInputStream](https://github.com/Atry/commons-continuations/blob/master/src/main/scala/com/dongxiguo/commons/continuations/io/AsynchronousInputStream.scala)
+and [SocketWritingQueue](https://github.com/Atry/commons-continuations/blob/master/src/main/scala/com/dongxiguo/commons/continuations/io/SocketWritingQueue.scala).
 
 # Repository
 
