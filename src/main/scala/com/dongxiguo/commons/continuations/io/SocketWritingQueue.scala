@@ -60,9 +60,6 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
     }
   }
 
-  //private val state:AtomicReference[SocketWritingQueue.State] =
-  //new AtomicReference(SocketWritingQueue.Idle(Nil))
-
   /**
    * 中断所有正在发送的数据。可以多次调用
    */
