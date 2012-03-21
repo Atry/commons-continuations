@@ -29,7 +29,7 @@ libraryDependencies <+= scalaVersion { sv =>
   "com.dongxiguo" % ("zero-log_" + sv) % "0.1.1"
 }
 
-version := "0.1-SNAPSHOT"
+version := "0.1.0"
 
 publishTo <<= (isSnapshot) { isSnapshot: Boolean =>
   if (isSnapshot)
