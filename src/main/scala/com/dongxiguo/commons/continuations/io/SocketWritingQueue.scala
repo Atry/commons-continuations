@@ -10,7 +10,7 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.util.continuations._
 
-object SocketWritingQueue {
+protected object SocketWritingQueue {
   private val (logger, formatter) = ZeroLoggerFactory.newLogger(this)
   import formatter._
 
@@ -31,7 +31,6 @@ object SocketWritingQueue {
   private case object Closed extends State
 
   private case object Interrupted extends State
-  
 
 }
 
@@ -212,6 +211,11 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
   }
 
   /**
+   *
+   */
+
+  /**
+   * TODO: 以前用execution.delay能把几个包连在一起发送，现在改用post就不行了
    * @throws IllegalStateException <code>SocketWritingQueue</code>已经关闭
    */
   @tailrec

@@ -4,6 +4,8 @@ name := "commons-continuations"
 
 organization := "com.dongxiguo"
 
+organizationHomepage := None
+
 libraryDependencies +=
   "com.novocode" % "junit-interface" % "0.7" % "test->default"
 
@@ -17,26 +19,45 @@ scalacOptions += "-unchecked"
 
 scalacOptions += "-deprecation"
 
+scalacOptions ++= Seq("-Xelide-below", "FINEST")
+
 scalaVersion := "2.10.0-M2"
 
-crossScalaVersions := Seq("2.10.0-M2")
-
-resolvers +=
-  "Atry's maven repository on github" at "http://atry.github.com/maven/"
+crossScalaVersions := Seq("2.10.0-M1", "2.10.0-M2")
 
 libraryDependencies <+= scalaVersion { sv =>
-  "com.dongxiguo" % ("zero-log_" + sv) % "0.1.0"
+  "com.dongxiguo" % ("zero-log_" + sv) % "0.1.1"
 }
 
 version := "0.1-SNAPSHOT"
 
-publishTo :=
-  Some(Resolver.file("Github Pages", file("../atry.github.com/maven")))
+publishTo <<= (isSnapshot) { isSnapshot: Boolean =>
+  if (isSnapshot)
+    Some("snapshots" at "https://oss.sonatype.org/content/repositories/snapshots") 
+  else
+    Some("releases" at "https://oss.sonatype.org/service/local/staging/deploy/maven2")
+}
 
-pomExtra <<= scalaVersion { version =>
+licenses := Seq(
+  "Apache License, Version 2.0" ->
+  url("http://www.apache.org/licenses/LICENSE-2.0.html"))
+
+homepage := Some(url("https://github.com/Atry/commons-continuations"))
+
+pomExtra <<= scalaVersion { scalaVersion =>
+  <scm>
+    <url>https://github.com/Atry/commons-continuations</url>
+    <connection>scm:git:git://github.com/Atry/commons-continuations.git</connection>
+  </scm>
+  <developers>
+    <developer>
+      <id>Atry</id>
+      <name>杨博</name>
+    </developer>
+  </developers>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <scala.version>{version}</scala.version>
+    <scala.version>{scalaVersion}</scala.version>
   </properties>
   <build>
     <plugins>
