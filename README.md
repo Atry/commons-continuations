@@ -23,8 +23,6 @@ and [SocketWritingQueue](https://github.com/Atry/commons-continuations/blob/mast
 # Repository
 
 If you use sbt, add following lines to you `build.sbt`:
-
-	resolvers += "Atry's maven repository" at "http://atry.github.com/maven"
 	
 	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1-SNAPSHOT"
 	
