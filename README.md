@@ -5,6 +5,7 @@
 ## Allow `for` statement with a suspendable code block.
 
 	import com.dongxiguo.commons.continuations.CollectionConverters._
+	import scala.util.continuations.shiftUnit
 	val mySeq = Seq("foo", "bar", "baz")
 	val results = for (element in mySeq.asSuspendable.par) yield {
 	  shiftUnit("Result from a suspendable expression: " + element)
