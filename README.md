@@ -13,6 +13,7 @@
 ## Hang up a continuation
 
 	import com.dongxiguo.commons.continuations.Hang
+	import scala.util.continuations.shift
 	shift(Hang)
 
 ## The `goto` statement
