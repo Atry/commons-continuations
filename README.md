@@ -32,7 +32,7 @@ and [SocketWritingQueue](https://github.com/Atry/commons-continuations/blob/mast
 
 If you use sbt, add following lines to you `build.sbt`:
 	
-	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1-SNAPSHOT"
+	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1.0"
 	
 	libraryDependencies <+= scalaVersion { v =>
 	  compilerPlugin("org.scala-lang.plugins" % "continuations" % v)
