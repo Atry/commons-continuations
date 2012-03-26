@@ -15,6 +15,13 @@
 	import com.dongxiguo.commons.continuations.Hang
 	shift(Hang)
 
+## Go to statement
+
+	import com.dongxiguo.commons.continuations.Label
+	val repeatPoint = Label()
+	doSomething()
+	repeatePoint.goto() // Infinite loop
+
 ## Use continuation with NIO2 socket.
 
 See [AsynchronousInputStream](https://github.com/Atry/commons-continuations/blob/master/src/main/scala/com/dongxiguo/commons/continuations/io/AsynchronousInputStream.scala)
