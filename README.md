@@ -15,7 +15,7 @@
 	import com.dongxiguo.commons.continuations.Hang
 	shift(Hang)
 
-## `goto` statement
+## The `goto` statement
 
 	import com.dongxiguo.commons.continuations.Label
 	val repeatPoint = Label()
