@@ -1,5 +1,5 @@
 /*
- * Copyright 2011 杨博 (Yang Bo)
+ * Copyright 2012 杨博 (Yang Bo)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
