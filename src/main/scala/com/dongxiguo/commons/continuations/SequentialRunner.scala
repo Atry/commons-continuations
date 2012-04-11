@@ -153,7 +153,36 @@ extends AtomicReference[SequentialRunner.State[Task, TaskQueue]] {
 
   /**
    * 标记为shutDown，不得再往队列中增加任务
+   * @param lastTasks 这个队列将会最后执行的一批任务
    */
+  @tailrec
+  final def shutDown(lastTasks: Task*) {
+    super.get match {
+      case oldState: Idle[Task, TaskQueue] =>
+        val newState = new ShuttedDown[Task, TaskQueue](emptyTaskQueue)
+        if (super.compareAndSet(oldState, newState)) {
+          reset {
+            run(oldState.tasks ++ lastTasks)
+          }
+        } else {
+          // retry
+          shutDown(lastTasks: _*)
+        }
+      case oldState: Running[Task, TaskQueue] =>
+        val newState =
+          new ShuttedDown[Task, TaskQueue](oldState.tasks ++ lastTasks)
+        if (!super.compareAndSet(oldState, newState)) {
+          // retry
+          shutDown(lastTasks: _*)
+        }
+      case _: ShuttedDown[Task, TaskQueue] =>
+    }
+  }
+
+  /**
+   * 标记为shutDown，不得再往队列中增加任务
+   */
+  @tailrec
   final def shutDown() {
     super.get match {
       case oldState: Idle[Task, TaskQueue] =>
