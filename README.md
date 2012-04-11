@@ -5,6 +5,7 @@
 ## Allow `for` statement with a suspendable code block.
 
 	import com.dongxiguo.commons.continuations.CollectionConverters._
+	import scala.util.continuations.shiftUnit
 	val mySeq = Seq("foo", "bar", "baz")
 	val results = for (element in mySeq.asSuspendable.par) yield {
 	  shiftUnit("Result from a suspendable expression: " + element)
@@ -13,7 +14,15 @@
 ## Hang up a continuation
 
 	import com.dongxiguo.commons.continuations.Hang
+	import scala.util.continuations.shift
 	shift(Hang)
+
+## The `goto` statement
+
+	import com.dongxiguo.commons.continuations.Label
+	val repeatPoint = Label()
+	doSomething()
+	repeatePoint.goto() // Infinite loop
 
 ## Use continuation with NIO2 socket.
 
@@ -24,7 +33,7 @@ and [SocketWritingQueue](https://github.com/Atry/commons-continuations/blob/mast
 
 If you use sbt, add following lines to you `build.sbt`:
 	
-	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1-SNAPSHOT"
+	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1.0"
 	
 	libraryDependencies <+= scalaVersion { v =>
 	  compilerPlugin("org.scala-lang.plugins" % "continuations" % v)
