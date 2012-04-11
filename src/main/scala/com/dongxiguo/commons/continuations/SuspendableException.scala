@@ -20,7 +20,15 @@ import scala.util.continuations._
 import scala.util.control.Exception.Catcher
 
 object SuspendableException {
-  def tryCatch[A](body: => A)(implicit catcher: Catcher[Unit]): A @suspendable =
+  /**
+   * 使用 Catcher 回调函数处理异常。
+   * @note 当`body`抛出异常时，不论`catcher`是否处理了异常，
+   * `tryWithCatcher`函数都不会返回。
+   * @param body 可能抛出异常的代码块
+   * @param catcher 异常处理函数。
+   */
+  final def tryWithCatcher[A](body: => A)(
+    implicit catcher: Catcher[Unit]): A @suspendable =
     shift { (continue: A => Unit) =>
       try {
         continue(body)
