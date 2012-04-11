@@ -154,5 +154,4 @@ object CollectionConverters {
     new AsSequentialSuspendableIterable[A](underline)
 }
 
-
 // vim: set ts=2 sw=2 et:
