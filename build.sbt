@@ -36,10 +36,10 @@ scalacOptions += "-deprecation"
 
 scalacOptions ++= Seq("-Xelide-below", "FINEST")
 
-crossScalaVersions := Seq("2.10.0-M1", "2.10.0-M2", "2.10.0-SNAPSHOT")
+crossScalaVersions := Seq("2.10.0-M1", "2.10.0-M2", "2.10.0-M3")
 
 libraryDependencies <+= scalaVersion { sv =>
-  "com.dongxiguo" % ("zero-log_" + sv) % "0.1.1"
+  "com.dongxiguo" % ("zero-log_" + sv) % "0.1.2"
 }
 
 version := "0.1.1-SNAPSHOT"
