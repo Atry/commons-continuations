@@ -26,17 +26,17 @@ libraryDependencies <+= scalaVersion {v =>
   compilerPlugin("org.scala-lang.plugins" % "continuations" % v)
 }
 
+autoCompilerPlugins := true
+
 scalacOptions += "-P:continuations:enable"
-            
+
 scalacOptions += "-unchecked"
 
 scalacOptions += "-deprecation"
 
 scalacOptions ++= Seq("-Xelide-below", "FINEST")
 
-scalaVersion := "2.10.0-M2"
-
-crossScalaVersions := Seq("2.10.0-M1", "2.10.0-M2")
+crossScalaVersions := Seq("2.10.0-M1", "2.10.0-M2", "2.10.0-SNAPSHOT")
 
 libraryDependencies <+= scalaVersion { sv =>
   "com.dongxiguo" % ("zero-log_" + sv) % "0.1.1"
