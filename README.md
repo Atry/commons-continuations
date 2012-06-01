@@ -33,7 +33,7 @@ and [SocketWritingQueue](https://github.com/Atry/commons-continuations/blob/mast
 
 If you use sbt, add following lines to you `build.sbt`:
 	
-	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1.0"
+	libraryDependencies += "com.dongxiguo" %% "commons-continuations" % "0.1.1"
 	
 	libraryDependencies <+= scalaVersion { v =>
 	  compilerPlugin("org.scala-lang.plugins" % "continuations" % v)
@@ -43,4 +43,4 @@ If you use sbt, add following lines to you `build.sbt`:
 	
 	scalacOptions += "-P:continuations:enable"
 
-Note that `commons-continuations` requires Scala version `2.10-M1` or `2.10-M2` and Sbt version `0.12-M1` or `0.12-M2`.
+Note that `commons-continuations` requires Scala version `2.10-M1`, `2.10-M2` or `2.10-M3` and Sbt version `0.12-M1` or `0.12-M2`.
