@@ -115,21 +115,25 @@ object CollectionConverters {
         })
 
     final def map[B: Manifest](f: A => B @suspendable): Array[B] @suspendable =
-      shift(
-        new AtomicInteger(underline.size) with ((Array[B] => Unit) => Unit) {
-          override final def apply(continue: Array[B] => Unit) {
-            val results = new Array[B](super.get)
-            for ((element, i) <- underline.view zipWithIndex) {
-              reset {
-                val result = f(element)
-                results(i) = result
-                if (super.decrementAndGet() == 0) {
-                  continue(results)
+      if (underline.isEmpty) {
+        Array.empty[B]
+      } else {
+        shift(
+          new AtomicInteger(underline.size) with ((Array[B] => Unit) => Unit) {
+            override final def apply(continue: Array[B] => Unit) {
+              val results = new Array[B](super.get)
+              for ((element, i) <- underline.view zipWithIndex) {
+                reset {
+                  val result = f(element)
+                  results(i) = result
+                  if (super.decrementAndGet() == 0) {
+                    continue(results)
+                  }
                 }
               }
             }
-          }
-        })
+          })
+      }
   }
 
   final class AsParallelSuspendableIterable[+A](
