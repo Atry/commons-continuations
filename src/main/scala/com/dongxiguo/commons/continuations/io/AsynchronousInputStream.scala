@@ -108,7 +108,7 @@ class AsynchronousInputStream(
       if (remaining > l) {
         buffer.get(b, off, l)
         limit = limit - l
-        l
+        count + l
       } else {
         buffer.get(b, off, remaining)
         limit = limit - remaining
@@ -173,15 +173,11 @@ class AsynchronousInputStream(
     }
   }
 
-  private def externalReadAll(bytesToRead: Int)(
+  private def externalRead(bytesToRead: Int)(
     implicit catcher:Catcher[Unit]): Unit @suspendable = {
-    val n = externalReadOnce(bytesToRead)(catcher)
-    if (n < 0) {
-      shiftUnit0[Unit, Unit]()
-    } else if (n < bytesToRead) {
-      externalReadAll(bytesToRead - n)
-    } else {
-      shiftUnit0[Unit, Unit]()
+    var n = externalReadOnce(bytesToRead)(catcher)
+    if (n >= 0 && n < bytesToRead) {
+      externalRead(bytesToRead - n)
     }
   }
 
@@ -202,7 +198,7 @@ class AsynchronousInputStream(
     // TODO: 我担心prepare有性能问题，需要评测
     val c = capacity
     if (bytesRequired > c) {
-      externalReadAll(bytesRequired - c)
+      externalRead(bytesRequired - c)
       limit = math.min(bytesRequired, capacity)
     } else {
       limit = bytesRequired
