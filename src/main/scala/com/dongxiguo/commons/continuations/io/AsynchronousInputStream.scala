@@ -18,8 +18,7 @@ package com.dongxiguo.commons.continuations
 package io
 
 import scala.util.control.Exception.Catcher
-import java.nio.channels.AsynchronousSocketChannel
-import java.nio.channels.CompletionHandler
+import java.nio.channels._
 import scala.annotation.tailrec
 import scala.util.continuations._
 import java.io.InputStream
@@ -139,7 +138,6 @@ class AsynchronousInputStream(
         channel.read(dst, continue, new ContinuationedHandler)
       } catch {
         case e if catcher.isDefinedAt(e) => catcher(e)
-        case e => throw e
       }
     }
   }
@@ -175,7 +173,7 @@ class AsynchronousInputStream(
 
   private def externalRead(bytesToRead: Int)(
     implicit catcher:Catcher[Unit]): Unit @suspendable = {
-    var n = externalReadOnce(bytesToRead)(catcher)
+    var n = externalReadOnce(bytesToRead)
     if (n >= 0 && n < bytesToRead) {
       externalRead(bytesToRead - n)
     }
@@ -198,11 +196,17 @@ class AsynchronousInputStream(
     // TODO: 我担心prepare有性能问题，需要评测
     val c = capacity
     if (bytesRequired > c) {
-      externalRead(bytesRequired - c)
+      externalRead(bytesRequired - c) {
+        case e if catcher.isDefinedAt(e) =>
+          limit = math.min(bytesRequired, capacity)
+          catcher(e)
+        case e =>
+          limit = math.min(bytesRequired, capacity)
+          throw e
+      }
       limit = math.min(bytesRequired, capacity)
     } else {
       limit = bytesRequired
-      shiftUnit0[Unit, Unit]()
     }
   }
 }
