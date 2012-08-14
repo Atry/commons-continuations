@@ -1,4 +1,4 @@
-`commons-continuations` is a collection of utilities which is designed to help Scala programmers to work with continuations.
+**commons-continuations** is a collection of utilities which is designed to help Scala programmers to work with continuations.
 
 # Features
 
