@@ -37,6 +37,14 @@ object SuspendableException {
           catcher(e)
       }
     }
+  
+  final def catchOrThrow(e: Throwable)(implicit catcher: Catcher[Unit]) {
+    if (catcher.isDefinedAt(e)) {
+      catcher(e)
+    } else {
+      throw e
+    }
+  }
 
 }
 
