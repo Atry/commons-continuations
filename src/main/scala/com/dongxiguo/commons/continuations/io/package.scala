@@ -30,23 +30,33 @@ package object io {
   extends CompletionHandler[java.lang.Long, Long => Unit] {
     override final def completed(
       bytesWritten: java.lang.Long,
-      handler:  Long => Unit) {
-      handler(bytesWritten)
+      handler: Long => Unit) {
+      try {
+        handler(bytesWritten)
+      } catch {
+        case e =>
+          logger.severe(
+            "Exception is thrown in continuation when handling a completed asynchronous writing.",
+            e)
+      }
     }
 
     /**
      * 写入时不处理异常而在读取处处理异常
      */
-    override final def failed(e: Throwable, handler:  Long => Unit) {
-      logger.fine(e)
+    override final def failed(throwable: Throwable, handler:  Long => Unit) {
+      logger.fine("Asynchronous operation is failed.", throwable)
       handler(-1)
     }
   }
 
+  final val DefaultReadTimeout = 1L
 
-  final val WriteTimeOut = 1L
+  final val DefaultReadTimeoutUnit = TimeUnit.SECONDS
 
-  final val WriteTimeOutUnit = TimeUnit.SECONDS
+  final val DefaultWriteTimeout = 1L
+
+  final val DefaultWriteTimeoutUnit = TimeUnit.SECONDS
 
   /**
    * 只要连接没断就能成功写入，但如果连接断开了就会失败而且不做任何提示。
@@ -55,14 +65,16 @@ package object io {
     socket: AsynchronousSocketChannel,
     buffers: Array[ByteBuffer],
     bufferOffset: Int,
-    bufferLength: Int): Unit @suspendable = {
+    bufferLength: Int,
+    timeout: Long,
+    unit: TimeUnit): Unit @suspendable = {
     val bytesWritten = shift { (continue: Long => Unit) =>
       socket.write(
         buffers,
         bufferOffset,
         bufferLength,
-        WriteTimeOut,
-        WriteTimeOutUnit,
+        timeout,
+        unit,
         continue,
         WriteHandler)
     }
@@ -84,7 +96,7 @@ package object io {
       val newOffset = getNewOffset(bufferOffset)
       val newLength = bufferLength - (newOffset - bufferOffset)
       if (newLength > 0) {
-        writeAll(socket, buffers, newOffset, newLength)
+        writeAll(socket, buffers, newOffset, newLength, timeout, unit)
       }
     }
   }
@@ -94,8 +106,10 @@ package object io {
    */
   final def writeAll(
     socket: AsynchronousSocketChannel,
-    buffers: Array[ByteBuffer]): Unit @suspendable =
-    writeAll(socket, buffers, 0, buffers.length)
+    buffers: Array[ByteBuffer],
+    timeout: Long = DefaultWriteTimeout,
+    unit: TimeUnit = DefaultWriteTimeoutUnit): Unit @suspendable =
+    writeAll(socket, buffers, 0, buffers.length, timeout, unit)
 }
 
 // vim: set ts=2 sw=2 et:

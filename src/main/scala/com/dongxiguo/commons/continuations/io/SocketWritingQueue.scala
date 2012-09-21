@@ -54,10 +54,13 @@ protected object SocketWritingQueue {
  * <code>SocketWritingQueue</code>是线程安全的，允许多个线程向这里提交要写入的数据。
  * 提交的缓冲区将按提交顺序排队写入
  */
-final class SocketWritingQueue(val socket: AsynchronousSocketChannel)
+final class SocketWritingQueue(
+  val socket: AsynchronousSocketChannel,
+  timeout: Long = DefaultWriteTimeout,
+  timeoutUnit: TimeUnit = DefaultWriteTimeoutUnit)
 extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) {
-  import SocketWritingQueue._
-  import formatter._
+  import SocketWritingQueue.logger
+  import SocketWritingQueue.formatter._
 
   @tailrec
   final def flush() {
@@ -76,7 +79,7 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
   }
 
   /**
-   * 中断所有正在发送的数据。可以多次调用
+   * 立即关闭SocketWritingQueue关联的socket，中断所有正在发送的数据。可以多次调用。
    */
   final def interrupt() {
     super.getAndSet(SocketWritingQueue.Interrupted) match {
@@ -88,8 +91,9 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
   }
 
   /**
-   * 关闭SocketWritingQueue关联的socket.
-   * 如果多次调用close()，只有第一次调用有效，后面几次会被忽略
+   * 关闭`SocketWritingQueue`. 
+   * 如果存在正在发送的数据，当这些数据发送完时，底层套接字才会真正被关闭。
+   * 如果多次调用`close()`，只有第一次调用有效，后面几次会被忽略
    */
   @tailrec
   final def close() {
@@ -130,16 +134,25 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
     override final def completed(
       bytesWritten:java.lang.Long,
       continue: Function1[Long, Unit] ) {
-      continue(bytesWritten.longValue)
+      try {
+        continue(bytesWritten.longValue)
+      } catch {
+        case e =>
+          logger.severe(
+            "Exception is thrown in continuation when handling a completed asynchronous writing.",
+            e)
+          sys.exit(1)
+      }
     }
 
     override final def failed(
       throwable:Throwable,
       continue: Function1[Long, Unit] ) {
-      throwable match {
-        case e: IOException =>
-          interrupt()
-        case e => throw e
+      if (throwable.isInstanceOf[IOException]) {
+        interrupt()
+      } else {
+        logger.severe("Asynchronous writing is failed.", throwable)
+        sys.exit(1)
       }
     }
   }
@@ -152,8 +165,8 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
           buffers,
           0,
           buffers.length,
-          WriteTimeOut,
-          WriteTimeOutUnit,
+          timeout,
+          timeoutUnit,
           continue,
           writeHandler)
       } catch {
@@ -227,11 +240,6 @@ extends AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil)) 
   }
 
   /**
-   *
-   */
-
-  /**
-   * TODO: 以前用execution.delay能把几个包连在一起发送，现在改用post就不行了
    * @throws IllegalStateException <code>SocketWritingQueue</code>已经关闭
    */
   @tailrec

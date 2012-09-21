@@ -20,6 +20,8 @@ import java.nio.channels.CompletionHandler
 import scala.util.control.Exception.Catcher
 
 object ContinuationizedCompletionHandler {
+  val (logger, formatter) = ZeroLoggerFactory.newLogger(this)
+
   val IntegerHandler = new ContinuationizedCompletionHandler[java.lang.Integer]
 
   val VoidHandler = new ContinuationizedCompletionHandler[Void]
@@ -27,20 +29,40 @@ object ContinuationizedCompletionHandler {
 
 final class ContinuationizedCompletionHandler[A]
 extends CompletionHandler[A, (A => _, Catcher[Unit])] {
+  import ContinuationizedCompletionHandler.logger
+  import ContinuationizedCompletionHandler.formatter._
+
   override final def completed(
     a: A,
     attachment: (A => _, Catcher[Unit])) {
-    attachment._1(a)
+    try {
+      attachment._1(a)
+    } catch {
+      case e =>
+        logger.severe(
+          "Exception is thrown in continuation when handling a completed asynchronous operation.",
+          e)
+        System.exit(1)
+    }
   }
 
   override final def failed(
-    e: Throwable,
+    throwable: Throwable,
     attachment: (A => _, Catcher[Unit])) {
     val catcher = attachment._2
-    if (catcher.isDefinedAt(e)) {
-      catcher(e)
+    if (catcher.isDefinedAt(throwable)) {
+      try {
+        catcher(throwable)
+      } catch {
+        case e =>
+          logger.severe(
+            "Exception is thrown in continuation when handling a failed asynchronous operation.",
+            e)
+          System.exit(1)
+      }
     } else {
-      throw e
+      logger.severe("Cannot handling a failed asynchronous operation.", throwable)
+      System.exit(1)
     }
   }
 

@@ -22,54 +22,92 @@ import java.nio.channels._
 import scala.annotation.tailrec
 import scala.util.continuations._
 import java.io.InputStream
+import java.io.EOFException
 import java.nio.ByteBuffer
+import java.util.concurrent.TimeUnit
 
-private object AsynchronousInputStream {
+object AsynchronousInputStream {
+  private val (logger, formatter) = ZeroLoggerFactory.newLogger(this)
+  import formatter._
 
-  /**
-   * 每次最少读取多少字节
-   */
-  private final val MinRead = 1492
-
-  private[AsynchronousInputStream] final class ContinuationedHandler(
+  private[AsynchronousInputStream] final class ReadHandler(
     implicit catcher: Catcher[Unit]) extends CompletionHandler[
       java.lang.Integer,
       Function1[Int, Unit] ] {
     override final def completed(
       bytesRead:java.lang.Integer,
       continue: Function1[Int, Unit] ) {
-      continue(bytesRead.intValue)
+      try {
+        continue(bytesRead.intValue)
+      } catch {
+        case e =>
+          logger.severe(
+            "Exception is thrown in continuation when handling a completed asynchronous reading.",
+            e)
+      }
     }
 
     override final def failed(
       throwable:Throwable,
       continue: Function1[Int, Unit] ) {
-      throwable match {
-        case e if catcher.isDefinedAt(e) =>
-          catcher(e)
-        case e => throw e
-      }
+        if (catcher.isDefinedAt(throwable)) {
+          try {
+            catcher(throwable)
+          } catch {
+            case e =>
+              logger.severe(
+                "Exception is thrown in continuation when handling a failed asynchronous reading.",
+                e)
+          }
+        } else {
+          logger.severe("Cannot handling a failed asynchronous reading.", throwable)
+        }
     }
 
   }
+  
+  /**
+   * 每次读取最少要准备多大的缓冲区
+   */
+  private final val MinBufferSizePerRead = 1492
+
+  final def newTimeoutInputStream(
+    channel: AsynchronousSocketChannel,
+    newByteBuffer: () => ByteBuffer,
+    timeout: Long = DefaultReadTimeout,
+    timeoutUnit: TimeUnit = DefaultReadTimeoutUnit) =
+    new AsynchronousInputStream(channel, newByteBuffer) {
+      override protected def readChannel(dst: ByteBuffer)(
+        implicit catcher: Catcher[Unit]):Int @suspendable = {
+        shift { (continue: Function1[Int, Unit] ) =>
+          try {
+            channel.read(dst, timeout, timeoutUnit, continue, new ReadHandler)
+          } catch {
+            case e if catcher.isDefinedAt(e) => catcher(e)
+          }
+        }
+      }
+
+    }
 }
 
-// TODO: 用软引用实现缓冲池
 class AsynchronousInputStream(
   channel: AsynchronousSocketChannel,
   newByteBuffer: () => ByteBuffer) extends InputStream {
+  // TODO: 用软引用实现缓冲池
+
   import AsynchronousInputStream._
 
   private val buffers = new collection.mutable.Queue[ByteBuffer]
 
-  override final def available: Int = limit
+  override final def available: Int = _available
 
-  private def capacity = buffers.foldLeft(0) { _ + _.remaining}
+  final def capacity = buffers.foldLeft(0) { _ + _.remaining}
 
-  private var limit:Int = _
+  private var _available:Int = _
 
   override final def read():Int = {
-    if (limit > 0) {
+    if (_available > 0) {
       if (buffers.isEmpty) {
         -1
       } else {
@@ -78,7 +116,7 @@ class AsynchronousInputStream(
         if (buffer.remaining == 0) {
           buffers.dequeue()
         }
-        limit -= 1
+        _available -= 1
         result
       }
     } else {
@@ -88,7 +126,7 @@ class AsynchronousInputStream(
 
   @tailrec
   private def read(b:Array[Byte], off:Int, len:Int, count:Int):Int = {
-    if (limit <= 0 || buffers.isEmpty) {
+    if (_available <= 0 || buffers.isEmpty) {
       if (count == 0) {
         if (len == 0) {
           0
@@ -101,16 +139,16 @@ class AsynchronousInputStream(
     } else if (len == 0) {
       count
     } else {
-      val l = math.min(len, limit)
+      val l = math.min(len, _available)
       val buffer = buffers.front
       val remaining = buffer.remaining
       if (remaining > l) {
         buffer.get(b, off, l)
-        limit = limit - l
+        _available = _available - l
         count + l
       } else {
         buffer.get(b, off, remaining)
-        limit = limit - remaining
+        _available = _available - remaining
         buffers.dequeue()
         read(b, off + remaining, l - remaining, count + remaining)
       }
@@ -130,12 +168,11 @@ class AsynchronousInputStream(
     channel.close()
   }
 
-
-  private def readChannel(dst:ByteBuffer)(
-    implicit catcher:Catcher[Unit]):Int @suspendable = {
+  protected def readChannel(dst: ByteBuffer)(
+    implicit catcher:Catcher[Unit]): Int @suspendable = {
     shift { (continue: Function1[Int, Unit] ) =>
       try {
-        channel.read(dst, continue, new ContinuationedHandler)
+        channel.read(dst, continue, new ReadHandler)
       } catch {
         case e if catcher.isDefinedAt(e) => catcher(e)
       }
@@ -146,7 +183,7 @@ class AsynchronousInputStream(
     implicit catcher:Catcher[Unit]):Int @suspendable = {
     if (buffers.nonEmpty) {
       val last = buffers.last
-      if (last.capacity - last.limit >= math.min(minRead, MinRead)) {
+      if (last.capacity - last.limit >= math.min(minRead, MinBufferSizePerRead)) {
         last.mark()
         last.position(last.limit)
         last.limit(last.capacity)
@@ -171,19 +208,48 @@ class AsynchronousInputStream(
     }
   }
 
+  // TODO: 在Scala修复bug后改为do...while循环
   private def externalRead(bytesToRead: Int)(
     implicit catcher:Catcher[Unit]): Unit @suspendable = {
-    var n = externalReadOnce(bytesToRead)
+    val n = externalReadOnce(bytesToRead)
     if (n >= 0 && n < bytesToRead) {
       externalRead(bytesToRead - n)
     }
   }
 
-  final def available_=(value: Int)(
+  /**
+   * Workaround to enable <code>asynchronousInputStream.available = 123</code> syntax.
+   */
+  @inline final def available(implicit dummy: DummyImplicit): Int = available()
+
+  /**
+   * 准备若干个字节的数据。
+   * @throws java.io.EOFException 如果对面已经断开连接，会触发本异常
+   */
+  final def available_=(bytesRequired: Int)(
     implicit catcher:Catcher[Unit]): Unit @suspendable = {
-    // TODO: 支持减少available
-    // TODO: 把别的代码改成setter风格
-    prepare(value)
+    val c = capacity
+    if (bytesRequired > c) {
+      externalRead(bytesRequired - c) {
+        case e if catcher.isDefinedAt(e) =>
+          _available = math.min(bytesRequired, capacity)
+          catcher(e)
+        case e =>
+          _available = math.min(bytesRequired, capacity)
+          throw e
+      }
+      val newCapacity = capacity
+      if (bytesRequired > newCapacity) {
+        _available = newCapacity
+        SuspendableException.catchOrThrow(new EOFException)
+        shift(Hang)
+      } else {
+        _available = bytesRequired
+      }
+    } else {
+      _available = bytesRequired
+    }
+
   }
 
   /**
@@ -191,22 +257,19 @@ class AsynchronousInputStream(
    * 当本continuation执行完毕时，
    * 除非对面已经断开连接，否则保证#available一定增加到<code>bytesRequired</code>.
    */
+  @deprecated(message="请改用available_=", since="0.2.0")
   final def prepare(bytesRequired:Int)(
     implicit catcher:Catcher[Unit]):Unit @suspendable = {
-    // TODO: 我担心prepare有性能问题，需要评测
     val c = capacity
     if (bytesRequired > c) {
       externalRead(bytesRequired - c) {
-        case e if catcher.isDefinedAt(e) =>
-          limit = math.min(bytesRequired, capacity)
-          catcher(e)
         case e =>
-          limit = math.min(bytesRequired, capacity)
-          throw e
+          _available = math.min(bytesRequired, capacity)
+          SuspendableException.catchOrThrow(e)
       }
-      limit = math.min(bytesRequired, capacity)
+      _available = math.min(bytesRequired, capacity)
     } else {
-      limit = bytesRequired
+      _available = bytesRequired
     }
   }
 }
