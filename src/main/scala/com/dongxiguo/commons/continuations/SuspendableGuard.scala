@@ -21,28 +21,18 @@ import scala.collection.immutable.Queue
 
 trait SuspendableGuard[Self] { self: Self =>
 
-  type Task = Self => Any @suspendable
+  private val queue = new SuspendableFunctionQueue
 
-  private val messageQueue = new SequentialRunner[Task, Queue[Task]] {
-    override protected final def consumeSome(
-      tasks: Queue[Task]): Queue[Task] @suspendable = {
-      @volatile var current = tasks
-      while (current.nonEmpty) {
-        current.head.apply(self)
-        current = current.tail
-      }
-      current
-    }
-
-    override protected final def taskQueueCanBuildFrom = Queue.canBuildFrom
-  }
+  type Task = Self => Any
 
   /**
    * 向队列加入一个任务，并尽快返回。
    */
+  @inline
   final def post[U](task: Self => U @suspendable) {
-    messageQueue.enqueue(task: Task)
-    messageQueue.flush()
+    queue.post {
+      task(self)
+    }
   }
 
   /**
@@ -51,11 +41,11 @@ trait SuspendableGuard[Self] { self: Self =>
    * 这样做容易导致死锁。
    * 应当在一次`send`或`post`返回后再调用下一次。
    */
-  final def send[U](task: Self => U @suspendable): U @suspendable =
-    shift { (continue: U => Unit) =>
-      post { self =>
-        continue(task(self))
-      }
+  @inline
+  final def send[U](task: Self => U @suspendable): U @suspendable = {
+    queue.send {
+      task(self)
     }
+  }
 }
 // vim: set ts=2 sw=2 et:

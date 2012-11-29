@@ -20,6 +20,51 @@ import scala.util.continuations._
 import scala.util.control.Exception.Catcher
 
 object SuspendableException {
+
+  final def blockingWait[U](body: Catcher[Unit] => U @suspendable) {
+    val lock = new AnyRef
+    @volatile
+    var optionalResult: Option[Either[Throwable, U]] = None
+    lock.synchronized {
+      reset {
+        val catcher: Catcher[Unit] = {
+          case e: Throwable =>
+            lock.synchronized {
+              optionalResult match {
+                case None => {
+                  optionalResult = Some(Left(e))
+                  lock.notify()
+                }
+                case _: Some[_] => {
+                  throw new IllegalStateException("Cannot return or throw an Exception more than once!", e)
+                }
+              }
+            }
+        }
+        val u = body(catcher)
+        lock.synchronized {
+          optionalResult match {
+            case None => {
+              optionalResult = Some(Right(u))
+              lock.notify()
+            }
+            case some: Some[_] => {
+              throw new IllegalStateException("Cannot return or throw an Exception more than once!")
+            }
+          }
+        }
+      }
+      if (optionalResult == None) {
+        lock.wait()
+      }
+    }
+    val Some(result) = optionalResult
+    result match {
+      case Left(e) => throw e
+      case Right(u) => u.asInstanceOf[U]
+    }
+  }
+
   /**
    * 使用 Catcher 回调函数处理异常。
    * @note 当`body`抛出异常时，不论`catcher`是否处理了异常，
@@ -29,15 +74,18 @@ object SuspendableException {
    */
   final def tryWithCatcher[A](body: => A)(
     implicit catcher: Catcher[Unit]): A @suspendable =
-    shift { (continue: A => Unit) =>
-      try {
-        continue(body)
-      } catch {
-        case e if catcher.isDefinedAt(e) =>
-          catcher(e)
+    shift(new ((A => Unit) => Unit) {
+      override final def apply(continue: A => Unit) {
+        continue(try {
+          body
+        } catch {
+          case e if catcher.isDefinedAt(e) =>
+            catcher(e)
+            return
+        })
       }
-    }
-  
+    })
+
   final def catchOrThrow(e: Throwable)(implicit catcher: Catcher[Unit]) {
     if (catcher.isDefinedAt(e)) {
       catcher(e)

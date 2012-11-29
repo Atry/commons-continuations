@@ -24,12 +24,62 @@ import scala.util.continuations._
 import scala.util.control.Exception.Catcher
 
 object SequentialFunctionRunnerTest {
-  private val (logger, formatter) = ZeroLoggerFactory.newLogger(this)
+  implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
+}
+
+object SynchronizedBenchmark extends testing.Benchmark {
+  override final def run() {
+    val sr1 = new SequentialFunctionRunner
+    for (i <- 0 until 10000) {
+      sr1.synchronized {}
+    }
+  }
+}
+
+object PostInSynchronizedBenchmark extends testing.Benchmark {
+  override final def run() {
+    val sr1 = new SequentialFunctionRunner
+    for (i <- 0 until 10000) {
+      sr1.synchronized {
+        sr1.post {}
+      }
+    }
+  }
+}
+
+object PostInPostBenchmark extends testing.Benchmark {
+  override final def run() {
+    val sr1 = new SequentialFunctionRunner
+    val sr2 = new SequentialFunctionRunner
+    for (i <- 0 until 10000) {
+      sr1.post {
+        sr2.post {}
+      }
+    }
+  }
+}
+
+object PostBenchmark extends testing.Benchmark {
+  override final def run() {
+    val sr1 = new SequentialFunctionRunner
+    for (i <- 0 until 10000) {
+      sr1.post {}
+    }
+  }
 }
 
 class SequentialFunctionRunnerTest {
   import SequentialFunctionRunnerTest.logger
-  import SequentialFunctionRunnerTest.formatter._
+  import SequentialFunctionRunnerTest.formatter
+  import SequentialFunctionRunnerTest.appender
+
+  @Test
+  def benchmark() {
+    PostBenchmark.main(Array("5"))
+    PostInPostBenchmark.main(Array("5"))
+    SynchronizedBenchmark.main(Array("5"))
+    PostInSynchronizedBenchmark.main(Array("5"))
+  }
 
   @Test
   def test() {
@@ -51,6 +101,7 @@ class SequentialFunctionRunnerTest {
         logger.info("5")
       }
     }
+    import language.reflectiveCalls
     assert(sr.get.asInstanceOf[{val tasks: collection.immutable.Queue[() => Any @suspendable]}].tasks.size == 3)
     sr.flush()
     assert(sr.get.asInstanceOf[{val tasks: collection.immutable.Queue[() => Any @suspendable]}].tasks.size == 0)

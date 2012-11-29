@@ -19,6 +19,10 @@ organization := "com.dongxiguo"
 
 organizationHomepage := None
 
+libraryDependencies <+= scalaVersion { sv =>
+  "org.scala-lang" % "scala-reflect" % sv
+}
+
 libraryDependencies +=
   "com.novocode" % "junit-interface" % "0.7" % "test->default"
 
@@ -30,19 +34,19 @@ autoCompilerPlugins := true
 
 scalacOptions += "-P:continuations:enable"
 
+scalacOptions += "-feature"
+
 scalacOptions += "-unchecked"
 
 scalacOptions += "-deprecation"
 
 scalacOptions ++= Seq("-Xelide-below", "FINEST")
 
-crossScalaVersions := Seq("2.10.0-M1", "2.10.0-M2", "2.10.0-M3")
+crossScalaVersions := Seq("2.10.0-RC3")
 
-libraryDependencies <+= scalaVersion { sv =>
-  "com.dongxiguo" % ("zero-log_" + sv) % "0.1.2"
-}
+libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.2"
 
-version := "0.1.2-SNAPSHOT"
+version := "0.2.0"
 
 publishTo <<= (isSnapshot) { isSnapshot: Boolean =>
   if (isSnapshot)

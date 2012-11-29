@@ -19,6 +19,7 @@ import scala.annotation.tailrec
 import scala.util.continuations._
 import scala.collection.immutable.Queue
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 final class SequentialFunctionRunner
 extends SequentialRunner[() => Any @suspendable, Queue[() => Any @suspendable]] {
   
@@ -26,7 +27,10 @@ extends SequentialRunner[() => Any @suspendable, Queue[() => Any @suspendable]] 
 
   override protected final def consumeSome(
     tasks: Queue[Task]): Queue[Task] @suspendable = {
-    @volatile var current = tasks
+    object Upvalues {
+      var current = tasks
+    }
+    import Upvalues._
     while (current.nonEmpty) {
       current.head.apply()
       current = current.tail

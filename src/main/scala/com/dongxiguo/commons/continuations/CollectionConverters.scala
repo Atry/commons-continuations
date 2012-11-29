@@ -58,7 +58,7 @@ object CollectionConverters {
   }
 
   final class ParallelSuspendableIterable[+A](underline: Iterable[A])
-  extends Parallel {
+    extends Parallel {
     final def par = this
 
     final def seq = new SequentialSuspendableIterable(underline)
@@ -122,7 +122,7 @@ object CollectionConverters {
           new AtomicInteger(underline.size) with ((Array[B] => Unit) => Unit) {
             override final def apply(continue: Array[B] => Unit) {
               val results = new Array[B](super.get)
-              for ((element, i) <- underline.view zipWithIndex) {
+              for ((element, i) <- underline.view.zipWithIndex) {
                 reset {
                   val result = f(element)
                   results(i) = result
@@ -137,14 +137,16 @@ object CollectionConverters {
   }
 
   final class AsParallelSuspendableIterable[+A](
-    underline: Iterable[A]) {
+    val underline: Iterable[A]) extends AnyVal {
     final def asSuspendable = new SequentialSuspendableIterable(underline)
   }
 
   final class AsSequentialSuspendableIterable[+A](
-    underline: Iterable[A]) {
+    val underline: Iterable[A]) extends AnyVal {
     final def asSuspendable = new SequentialSuspendableIterable(underline)
   }
+
+  import language.implicitConversions
 
   implicit def iterableAsParallelSuspendableIterable[A](
     underline: Iterable[A] with Parallel) =

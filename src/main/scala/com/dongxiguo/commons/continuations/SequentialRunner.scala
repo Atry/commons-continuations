@@ -20,40 +20,33 @@ import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.util.continuations._
 import scala.collection.TraversableLike
+import com.dongxiguo.fastring.Fastring.Implicits._
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 protected object SequentialRunner {
-  private val (logger, formatter) = ZeroLoggerFactory.newLogger(this)
+  implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
 
-  private[SequentialRunner] sealed abstract class State[
-    Task,
-    TaskQueue <: TraversableLike[Task, TaskQueue]]
+  private[SequentialRunner] sealed abstract class State[Task, TaskQueue <: TraversableLike[Task, TaskQueue]]
 
-  private final case class Idle[
-    Task,
-    TaskQueue <: TraversableLike[Task, TaskQueue]](
+  private final case class Idle[Task, TaskQueue <: TraversableLike[Task, TaskQueue]](
     tasks: TaskQueue) extends State[Task, TaskQueue]
 
-  private final case class Running[
-    Task,
-    TaskQueue <: TraversableLike[Task, TaskQueue]](
+  private final case class Running[Task, TaskQueue <: TraversableLike[Task, TaskQueue]](
     tasks: TaskQueue) extends State[Task, TaskQueue]
 
-  private final case class ShuttedDown[
-    Task,
-    TaskQueue <: TraversableLike[Task, TaskQueue]](
+  private final case class ShuttedDown[Task, TaskQueue <: TraversableLike[Task, TaskQueue]](
     tasks: TaskQueue) extends State[Task, TaskQueue]
 }
 
-import SequentialRunner._
-
+// FIXME: SequentialRunner性能太差，enqueue和flush竟然需要3000纳秒，比一次线程切换开销还大！
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 abstract class SequentialRunner[Task, TaskQueue <: TraversableLike[Task, TaskQueue]]
-extends AtomicReference[SequentialRunner.State[Task, TaskQueue]] {
-  import formatter._
-  
+  extends AtomicReference[SequentialRunner.State[Task, TaskQueue]] {
+  import SequentialRunner._
+
   protected def consumeSome(tasks: TaskQueue): TaskQueue @suspendable
 
-  implicit protected def taskQueueCanBuildFrom:
-  collection.generic.CanBuildFrom[TaskQueue, Task, TaskQueue]
+  implicit protected def taskQueueCanBuildFrom: collection.generic.CanBuildFrom[TaskQueue, Task, TaskQueue]
 
   private def emptyTaskQueue: TaskQueue = taskQueueCanBuildFrom().result
 
@@ -62,43 +55,37 @@ extends AtomicReference[SequentialRunner.State[Task, TaskQueue]] {
   @tailrec
   private def takeMore(remainingTasks: TaskQueue): TaskQueue = {
     logger.finer {
-      _ ++= remainingTasks.size.toString ++= " remaining tasks now, takeMore."
+      fast"${remainingTasks.size} remaining tasks now, takeMore."
     }
     super.get match {
       case oldState: ShuttedDown[Task, TaskQueue] =>
-        logger.finer {
-          _ ++= "Found " ++= oldState.tasks.size.toString ++= " more tasks."
-        }
+        logger.finer(fast"Found ${oldState.tasks.size} more tasks.")
         if (super.compareAndSet(oldState, ShuttedDown(emptyTaskQueue))) {
           val result = remainingTasks ++ oldState.tasks
-          logger.finest {
-            _ ++= "After takeMore, there is " ++=
-            result.size.toString ++= " tasks."
-          }
+          logger.finest(fast"After takeMore, there is ${result.size} tasks.")
           result
         } else {
           // retry
           takeMore(remainingTasks)
         }
       case oldState: Running[Task, TaskQueue] =>
-        logger.finer { _ ++=
-          "remainingTasks.size: " ++= remainingTasks.size.toString += '\n' ++=
-          "oldState.tasks.size: " ++= oldState.tasks.size.toString += '\n' ++=
-          "(remainingTasks ++ oldState.tasks).size: " ++=
-          (remainingTasks ++ oldState.tasks).size.toString
-        }
+        logger.finer(
+          fast"remainingTasks.size: ${
+            remainingTasks.size.toString
+          }\noldState.tasks.size: ${
+            oldState.tasks.size
+          }\n(remainingTasks ++ oldState.tasks).size: ${
+            (remainingTasks ++ oldState.tasks).size
+          }")
         val result = remainingTasks ++ oldState.tasks
-        val newState: State[Task,TaskQueue] =
+        val newState: State[Task, TaskQueue] =
           if (result.isEmpty) {
             Idle(emptyTaskQueue)
           } else {
             Running(emptyTaskQueue)
           }
         if (super.compareAndSet(oldState, newState)) {
-          logger.finest {
-            _ ++= "After takeMore, there is " ++=
-            result.size.toString ++= " tasks."
-          }
+          logger.finest(fast"After takeMore, there is ${result.size} tasks.")
           result
         } else {
           // retry
@@ -108,7 +95,7 @@ extends AtomicReference[SequentialRunner.State[Task, TaskQueue]] {
         throw new IllegalStateException
     }
   }
-  
+
   private def run(tasks: TaskQueue): Unit @suspendable = {
     var varTasks = tasks
     while (!varTasks.isEmpty) {
@@ -120,7 +107,7 @@ extends AtomicReference[SequentialRunner.State[Task, TaskQueue]] {
   @tailrec
   final def enqueue(tasks: Task*) {
     val oldState = super.get
-    val newState: State[Task, TaskQueue] = 
+    val newState: State[Task, TaskQueue] =
       oldState match {
         case oldState: Idle[Task, TaskQueue] =>
           new Idle[Task, TaskQueue](oldState.tasks ++ tasks)

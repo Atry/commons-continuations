@@ -21,9 +21,10 @@ import java.util.concurrent._
 import java.nio.channels._
 import scala.util.continuations._
 import scala.annotation._
+import com.dongxiguo.fastring.Fastring.Implicits._
 
 package object io {
-  private val (logger, formatter) = ZeroLoggerFactory.newLogger(this)
+  implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
   import formatter._
 
   private object WriteHandler
@@ -34,7 +35,7 @@ package object io {
       try {
         handler(bytesWritten)
       } catch {
-        case e =>
+        case e: Throwable =>
           logger.severe(
             "Exception is thrown in continuation when handling a completed asynchronous writing.",
             e)
@@ -50,14 +51,6 @@ package object io {
     }
   }
 
-  final val DefaultReadTimeout = 1L
-
-  final val DefaultReadTimeoutUnit = TimeUnit.SECONDS
-
-  final val DefaultWriteTimeout = 1L
-
-  final val DefaultWriteTimeoutUnit = TimeUnit.SECONDS
-
   /**
    * 只要连接没断就能成功写入，但如果连接断开了就会失败而且不做任何提示。
    */
@@ -68,6 +61,8 @@ package object io {
     bufferLength: Int,
     timeout: Long,
     unit: TimeUnit): Unit @suspendable = {
+    logger.fine{ fast"writeAll for ${timeout.toString}${unit.toString}" }
+    logger.finest(buffers.mkString)
     val bytesWritten = shift { (continue: Long => Unit) =>
       socket.write(
         buffers,
@@ -107,8 +102,8 @@ package object io {
   final def writeAll(
     socket: AsynchronousSocketChannel,
     buffers: Array[ByteBuffer],
-    timeout: Long = DefaultWriteTimeout,
-    unit: TimeUnit = DefaultWriteTimeoutUnit): Unit @suspendable =
+    timeout: Long,
+    unit: TimeUnit): Unit @suspendable =
     writeAll(socket, buffers, 0, buffers.length, timeout, unit)
 }
 
