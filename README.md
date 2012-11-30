@@ -39,8 +39,8 @@ If you use sbt, add following lines to you `build.sbt`:
 	  compilerPlugin("org.scala-lang.plugins" % "continuations" % v)
 	}
 	
-	scalaVersion := "2.10.0-M2"
+	scalaVersion := "2.10.0-RC3"
 	
 	scalacOptions += "-P:continuations:enable"
 
-Note that `commons-continuations` requires Scala version `2.10-M1`, `2.10-M2` or `2.10-M3` and Sbt version `0.12-M1` or `0.12-M2`.
+Note that `commons-continuations` requires Scala version `2.10.0-RC3` and Sbt version `0.12.1`.
