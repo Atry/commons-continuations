@@ -21,7 +21,7 @@ import scala.util.control.Exception.Catcher
 
 object SuspendableException {
 
-  final def blockingWait[U](body: Catcher[Unit] => U @suspendable) {
+  final def blockingWait[U](body: Catcher[Unit] => U @suspendable): U = {
     val lock = new AnyRef
     @volatile
     var optionalResult: Option[Either[Throwable, U]] = None
@@ -61,7 +61,7 @@ object SuspendableException {
     val Some(result) = optionalResult
     result match {
       case Left(e) => throw e
-      case Right(u) => u.asInstanceOf[U]
+      case Right(u) => u
     }
   }
 

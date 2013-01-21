@@ -16,30 +16,25 @@
 
 package com.dongxiguo.commons.continuations
 
-import scala.util.continuations._
-
-import SuspendableFunctionQueue._
+import AutoConsumableQueue._
+import CollectionConverters._
 import java.util.concurrent.atomic.AtomicReference
 
-object SuspendableFunctionQueue {
-  type Task = () => _ @suspendable
+object AutoConsumableQueue {
+  sealed abstract class State[+Task]
 
-  def enquene(task: Task)(origin: List[Task]): List[Task] = {
-    task :: origin
-  }
+  final case object Idle extends State[Nothing]
 
-  sealed abstract class State
+  final case object ShuttedDown extends State[Nothing]
 
-  final case object Idle extends State
+  final case class Running[+Task] private[AutoConsumableQueue] (tasks: List[Task]) extends State[Task]
 
-  final case object ShuttedDown extends State
-
-  final case class Running(tasks: List[Task]) extends State
-
-  final case class ShuttingDown(tasks: List[Task]) extends State
+  final case class ShuttingDown[+Task] private[AutoConsumableQueue] (tasks: List[Task]) extends State[Task]
 }
 
-class SuspendableFunctionQueue extends AtomicReference[State](Idle) {
+abstract class AutoConsumableQueue[Task] extends AtomicReference[State[Task]](Idle) {
+
+  protected def consume(task: Task)
 
   private def takeMore() {
     get match {
@@ -50,13 +45,8 @@ class SuspendableFunctionQueue extends AtomicReference[State](Idle) {
       }
       case old @ Running(tasks) => {
         if (compareAndSet(old, Running(Nil))) {
-          reset {
-            val i = tasks.reverseIterator
-            while (i.hasNext) {
-              i.next()()
-            }
-            takeMore()
-          }
+          tasks.reverseIterator foreach { consume(_) }
+          takeMore()
         } else {
           return takeMore()
         }
@@ -68,13 +58,8 @@ class SuspendableFunctionQueue extends AtomicReference[State](Idle) {
       }
       case old @ ShuttingDown(tasks) => {
         if (compareAndSet(old, ShuttingDown(Nil))) {
-          reset {
-            val i = tasks.reverseIterator
-            while (i.hasNext) {
-              i.next()()
-            }
-            takeMore()
-          }
+          tasks.reverseIterator foreach { consume(_) }
+          takeMore()
         } else {
           return takeMore()
         }
@@ -84,6 +69,7 @@ class SuspendableFunctionQueue extends AtomicReference[State](Idle) {
     }
   }
 
+  @throws(classOf[ShuttedDownException])
   @annotation.tailrec
   final def shutDown() {
     get match {
@@ -102,22 +88,21 @@ class SuspendableFunctionQueue extends AtomicReference[State](Idle) {
     }
   }
 
+  @throws(classOf[ShuttedDownException])
   @annotation.tailrec
-  final def shutDown[U](task: => U @suspendable) {
+  final def enqueueAndShutDown(task: Task) {
     get match {
       case old @ Idle => {
         if (compareAndSet(old, ShuttingDown(Nil))) {
-          reset {
-            task
-            takeMore()
-          }
+          consume(task)
+          takeMore()
         } else {
-          shutDown(task)
+          enqueueAndShutDown(task)
         }
       }
       case old @ Running(tasks) => {
-        if (!compareAndSet(old, ShuttingDown(task _ :: tasks))) {
-          return shutDown(task)
+        if (!compareAndSet(old, ShuttingDown(task :: tasks))) {
+          enqueueAndShutDown(task)
         }
       }
       case ShuttingDown(_) | ShuttedDown =>
@@ -125,35 +110,25 @@ class SuspendableFunctionQueue extends AtomicReference[State](Idle) {
     }
   }
 
+  @throws(classOf[ShuttedDownException])
   @annotation.tailrec
-  final def post[U](task: => U @suspendable) {
+  final def enqueue(task: Task) {
     get match {
       case old @ Idle => {
         if (compareAndSet(old, Running(Nil))) {
-          reset {
-            task
-            takeMore()
-          }
+          consume(task)
+          takeMore()
         } else {
-          post(task)
+          enqueue(task)
         }
       }
       case old @ Running(tasks) => {
-        if (!compareAndSet(old, Running(task _ :: tasks))) {
-          return post(task)
+        if (!compareAndSet(old, Running(task :: tasks))) {
+          enqueue(task)
         }
       }
       case ShuttingDown(_) | ShuttedDown =>
         throw new ShuttedDownException("SequentialRunner is shutted down!")
-    }
-  }
-
-  @inline
-  final def send[U](task: => U @suspendable): U @util.continuations.suspendable = {
-    util.continuations.shift { (continue: U => Unit) =>
-      post {
-        continue(task)
-      }
     }
   }
 }

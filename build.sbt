@@ -42,7 +42,7 @@ scalacOptions += "-deprecation"
 
 scalacOptions ++= Seq("-Xelide-below", "FINEST")
 
-crossScalaVersions := Seq("2.10.0-RC3")
+crossScalaVersions := Seq("2.10.0")
 
 libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.2"
 

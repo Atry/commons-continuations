@@ -22,13 +22,13 @@ import scala.collection._
 import java.util.concurrent.atomic._
 
 object CollectionConverters {
-  final class SequentialSuspendableIterable[+A](underline: Iterable[A]) {
+  final class SequentialSuspendableIterable[+A](underlying: Iterable[A]) {
     final def seq = this
 
-    final def par = new ParallelSuspendableIterable(underline)
+    final def par = new ParallelSuspendableIterable(underlying)
 
     final def filter(p: A => Boolean @suspendable): List[A] @suspendable = {
-      val i = underline.iterator
+      val i = underlying.iterator
       val builder = List.newBuilder[A]
       while (i.hasNext) {
         val element = i.next()
@@ -40,14 +40,14 @@ object CollectionConverters {
     }
 
     final def foreach[U](f: A => U @suspendable): Unit @suspendable = {
-      val i = underline.iterator
+      val i = underlying.iterator
       while (i.hasNext) {
         f(i.next)
       }
     }
 
     final def map[B: Manifest](f: A => B @suspendable): List[B] @suspendable = {
-      val i = underline.iterator
+      val i = underlying.iterator
       val builder = List.newBuilder[B]
       while (i.hasNext) {
         val element = f(i.next())
@@ -57,11 +57,11 @@ object CollectionConverters {
     }
   }
 
-  final class ParallelSuspendableIterable[+A](underline: Iterable[A])
+  final class ParallelSuspendableIterable[+A](underlying: Iterable[A])
     extends Parallel {
     final def par = this
 
-    final def seq = new SequentialSuspendableIterable(underline)
+    final def seq = new SequentialSuspendableIterable(underlying)
 
     final def filter(p: A => Boolean @suspendable): List[A] @suspendable =
       shift(
@@ -77,7 +77,7 @@ object CollectionConverters {
           }
 
           override final def apply(continue: List[A] => Unit) {
-            for (element <- underline) {
+            for (element <- underlying) {
               super.incrementAndGet()
               reset {
                 val pass = p(element)
@@ -99,7 +99,7 @@ object CollectionConverters {
       shift(
         new AtomicInteger(1) with ((Unit => Unit) => Unit) {
           override final def apply(continue: Unit => Unit) {
-            for (element <- underline) {
+            for (element <- underlying) {
               super.incrementAndGet()
               reset {
                 f(element)
@@ -115,14 +115,14 @@ object CollectionConverters {
         })
 
     final def map[B: Manifest](f: A => B @suspendable): Array[B] @suspendable =
-      if (underline.isEmpty) {
+      if (underlying.isEmpty) {
         Array.empty[B]
       } else {
         shift(
-          new AtomicInteger(underline.size) with ((Array[B] => Unit) => Unit) {
+          new AtomicInteger(underlying.size) with ((Array[B] => Unit) => Unit) {
             override final def apply(continue: Array[B] => Unit) {
               val results = new Array[B](super.get)
-              for ((element, i) <- underline.view.zipWithIndex) {
+              for ((element, i) <- underlying.view.zipWithIndex) {
                 reset {
                   val result = f(element)
                   results(i) = result
@@ -137,27 +137,27 @@ object CollectionConverters {
   }
 
   final class AsParallelSuspendableIterable[+A](
-    val underline: Iterable[A]) extends AnyVal {
-    final def asSuspendable = new SequentialSuspendableIterable(underline)
+    val underlying: Iterable[A]) extends AnyVal {
+    final def asSuspendable = new SequentialSuspendableIterable(underlying)
   }
 
   final class AsSequentialSuspendableIterable[+A](
-    val underline: Iterable[A]) extends AnyVal {
-    final def asSuspendable = new SequentialSuspendableIterable(underline)
+    val underlying: Iterable[A]) extends AnyVal {
+    final def asSuspendable = new SequentialSuspendableIterable(underlying)
   }
 
   import language.implicitConversions
 
   implicit def iterableAsParallelSuspendableIterable[A](
-    underline: Iterable[A] with Parallel) =
-    new AsParallelSuspendableIterable[A](underline.seq)
+    underlying: Iterable[A] with Parallel) =
+    new AsParallelSuspendableIterable[A](underlying.seq)
 
   implicit def iterableAsSequentialSuspendableIterable[A](
-    underline: Iterable[A]) =
-    new AsSequentialSuspendableIterable[A](underline)
+    underlying: Iterable[A]) =
+    new AsSequentialSuspendableIterable[A](underlying)
 
-  implicit def arrayAsSequentialSuspendableIterable[A](underline: Array[A]) =
-    new AsSequentialSuspendableIterable[A](underline)
+  implicit def arrayAsSequentialSuspendableIterable[A](underlying: Array[A]) =
+    new AsSequentialSuspendableIterable[A](underlying)
 }
 
 // vim: set ts=2 sw=2 et:
