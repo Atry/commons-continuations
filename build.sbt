@@ -44,9 +44,9 @@ scalacOptions ++= Seq("-Xelide-below", "FINEST")
 
 crossScalaVersions := Seq("2.10.0")
 
-libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.2"
+libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.3"
 
-version := "0.2.0"
+version := "0.2.1"
 
 publishTo <<= (isSnapshot) { isSnapshot: Boolean =>
   if (isSnapshot)
