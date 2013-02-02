@@ -1,4 +1,4 @@
-zero-log
+commons-continuations
 Copyright 2011 杨博 (Yang Bo)
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 
-本作品(zero-log)的著作权属于杨博，首次发布于2011年。
+本作品(commons-continuations)的著作权属于杨博，首次发布于2011年。
 
 我把本作品提供给你使用的前提是，你必须同意格式合同“Apache License 2.0”。
 “Apache License 2.0”是一种开源许可证，所以commons-continuations是开源软件。
