@@ -79,10 +79,6 @@ object AsynchronousInputStream {
 
 }
 
-/**
- * @param newByteBuffer 如果用户直接需要把数据整块复制到一处再解析具体协议，那么可以用Direct buffer。
- * 而如果用户直接在流上解析协议，那么应该用堆缓冲区
- */
 abstract class AsynchronousInputStream extends InputStream {
   import AsynchronousInputStream._
   import formatter._
