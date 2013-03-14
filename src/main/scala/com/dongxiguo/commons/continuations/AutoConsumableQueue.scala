@@ -36,9 +36,12 @@ abstract class AutoConsumableQueue[Task] extends AtomicReference[State[Task]](Id
 
   protected def consume(task: Task)
 
+  protected def beforeIdle() {}
+
   private def takeMore() {
     get match {
       case old @ Running(Nil) => {
+        beforeIdle()
         if (!compareAndSet(old, Idle)) {
           return takeMore()
         }
