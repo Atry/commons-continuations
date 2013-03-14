@@ -86,6 +86,16 @@ object SuspendableException {
       }
     })
 
+  final def catchUntilNextSuspendableFunction[Result](r: Result)(implicit catcher: Catcher[Unit]): Result @suspendable = {
+    shift { (continue: Result => Unit) =>
+      try {
+        continue(r)
+      } catch {
+        case e if catcher.isDefinedAt(e) => catcher(e)
+      }
+    }
+  }
+
   final def catchOrThrow(e: Throwable)(implicit catcher: Catcher[Unit]) {
     if (catcher.isDefinedAt(e)) {
       catcher(e)

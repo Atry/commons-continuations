@@ -30,7 +30,7 @@ protected object SocketWritingQueue {
   implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
   import formatter._
 
-  private[SocketWritingQueue] sealed trait State extends NotNull
+  private[SocketWritingQueue] sealed abstract class State extends NotNull
 
   private final case class Idle(
     val buffers: List[ByteBuffer]) extends State

@@ -301,7 +301,7 @@ abstract class AsynchronousInputStream extends InputStream {
   final def available_=(bytesRequired: Int)(
     implicit catcher: Catcher[Unit]): Unit @suspendable = {
     logger.fine {
-      fast"Bytes avaliable now: ${available.toString}, expected: ${bytesRequired.toString})"
+      fast"Bytes avaliable now: ${available.toString}, expected: ${bytesRequired.toString}"
     }
     val c = capacity
     if (bytesRequired > c) {
@@ -330,6 +330,7 @@ abstract class AsynchronousInputStream extends InputStream {
     logger.finer {
       fast"Bytes avaiable is ${_available.toString} now."
     }
+    SuspendableException.catchUntilNextSuspendableFunction()
 
   }
 
@@ -363,6 +364,7 @@ abstract class AsynchronousInputStream extends InputStream {
     logger.finer {
       fast"Bytes avaiable is ${_available.toString} now."
     }
+    SuspendableException.catchUntilNextSuspendableFunction()
   }
 }
 // vim: et sts=2 sw=2

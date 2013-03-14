@@ -42,6 +42,7 @@ final class OperationCounter extends AtomicInteger(0) {
     operation
     if (completed.compareAndSet(false, true)) {
       afterOperation()
+      SuspendableException.catchUntilNextSuspendableFunction()
     } else {
       SuspendableException.catchOrThrow(throw new IllegalStateException(
         "An operation cannot be finished more than once!"))
@@ -69,7 +70,12 @@ final class OperationCounter extends AtomicInteger(0) {
           shutdownHandler = continue
           if (OperationCounter.super.compareAndSet(n, n + Int.MinValue)) {
             if (n == 0) {
-              continue()
+              try {
+                continue()
+              } catch {
+                case e if catcher.isDefinedAt(e) =>
+                  catcher(e)
+              }
             }
           } else {
             apply(continue)

@@ -27,6 +27,7 @@ object SequentialFunctionRunnerTest {
   implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
 }
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 object SynchronizedBenchmark extends testing.Benchmark {
   override final def run() {
     val sr1 = new SequentialFunctionRunner
@@ -36,6 +37,7 @@ object SynchronizedBenchmark extends testing.Benchmark {
   }
 }
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 object PostInSynchronizedBenchmark extends testing.Benchmark {
   override final def run() {
     val sr1 = new SequentialFunctionRunner
@@ -47,6 +49,7 @@ object PostInSynchronizedBenchmark extends testing.Benchmark {
   }
 }
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 object PostInPostBenchmark extends testing.Benchmark {
   override final def run() {
     val sr1 = new SequentialFunctionRunner
@@ -59,6 +62,7 @@ object PostInPostBenchmark extends testing.Benchmark {
   }
 }
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 object PostBenchmark extends testing.Benchmark {
   override final def run() {
     val sr1 = new SequentialFunctionRunner
@@ -68,6 +72,7 @@ object PostBenchmark extends testing.Benchmark {
   }
 }
 
+@deprecated("应改用com.dongxiguo.commons.continuations.FunctionQueue", "0.1.2")
 class SequentialFunctionRunnerTest {
   import SequentialFunctionRunnerTest.logger
   import SequentialFunctionRunnerTest.formatter
