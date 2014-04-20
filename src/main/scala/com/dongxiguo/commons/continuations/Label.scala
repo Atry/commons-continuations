@@ -15,19 +15,22 @@
  */
 
 package com.dongxiguo.commons.continuations
+
+import scala.language.higherKinds
 import scala.util.continuations._
 
-final class Label(val rest: Label => Unit) {
+final class Label[TailRec[+X]: MaybeTailCalls](val rest: Label[TailRec] => TailRec[Unit]) {
+  private type suspendable = cps[TailRec[Unit]]
   final def goto(): Nothing @suspendable =
-    shift { (afterGoto: Nothing => Unit) =>
-      rest(this)
+    shift { (afterGoto: Nothing => TailRec[Unit]) =>
+      MaybeTailCalls.tailcall(rest(this))
     }
 }
 
 object Label {
-  final def apply(): Label @suspendable =
-    shift { (label: Label => Unit) =>
-      label(new Label(label))
+  final def apply[TailRec[+X]: MaybeTailCalls](): Label[TailRec] @cps[TailRec[Unit]] =
+    shift { (label: Label[TailRec] => TailRec[Unit]) =>
+      MaybeTailCalls.tailcall(label(new Label[TailRec](label)))
     }
 }
 // vim: expandtab softtabstop=2 shiftwidth=2

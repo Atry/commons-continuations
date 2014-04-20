@@ -16,29 +16,32 @@
 
 package com.dongxiguo.commons.continuations
 
-class FunctionQueue extends AutoConsumableQueue[()=>Unit] {
+import scala.language.higherKinds
+
+class FunctionQueue extends AutoConsumableQueue[() => Unit] {
 
   protected final def consume(task: () => Unit) {
     task()
   }
 
   @throws(classOf[ShuttedDownException])
-  final def shutDown[U](task: => U) {
+  final def shutDown(task: => Unit) {
     enqueueAndShutDown(task _: () => Unit)
   }
 
   @throws(classOf[ShuttedDownException])
-  final def post[U](task: => U) {
+  final def post(task: => Unit) {
     enqueue(task _: () => Unit)
   }
 
   @deprecated("请手动使用shift和post的组合以精确控制锁的粒度", "0.1.2")
   @inline
-  final def send[A](): Unit @util.continuations.suspendable = {
-    util.continuations.shift { (continue: Unit => Unit) =>
+  final def send[TailRec[+X]: MaybeTailCalls, A](): Unit @util.continuations.cps[TailRec[Unit]] = {
+    util.continuations.shift { (continue: Unit => TailRec[Unit]) =>
       post {
-        continue()
+        MaybeTailCalls.result(continue())
       }
+      MaybeTailCalls.done()
     }
   }
 }

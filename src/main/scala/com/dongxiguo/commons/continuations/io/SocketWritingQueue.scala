@@ -17,6 +17,7 @@
 package com.dongxiguo.commons.continuations
 package io
 
+import scala.language.higherKinds
 import java.io.IOException
 import java.nio.ByteBuffer
 import java.nio.channels._
@@ -32,12 +33,21 @@ protected object SocketWritingQueue {
 
   private[SocketWritingQueue] sealed abstract class State extends NotNull
 
+  /**
+   * 队列中的数据暂停发送
+   */
   private final case class Idle(
     val buffers: List[ByteBuffer]) extends State
 
+  /**
+   * 队列中的数据正在发送
+   */
   private final case class Running(
     val buffers: List[ByteBuffer]) extends State
 
+  /**
+   * 队列中的数据正在发送。当这些数据发送完毕以后将会关闭socket。
+   */
   private final case class Closing(
     val buffers: List[ByteBuffer]) extends State
 
@@ -54,15 +64,20 @@ protected object SocketWritingQueue {
  * <code>SocketWritingQueue</code>是线程安全的，允许多个线程向这里提交要写入的数据。
  * 提交的缓冲区将按提交顺序排队写入
  */
-trait SocketWritingQueue {
+trait SocketWritingQueue[TailRec[+X]] {
   import SocketWritingQueue.logger
   import SocketWritingQueue.formatter
   import SocketWritingQueue.appender
+
+  private type suspendable = cps[TailRec[Unit]]
+
   private val state = new AtomicReference[SocketWritingQueue.State](SocketWritingQueue.Idle(Nil))
 
   protected val socket: AsynchronousSocketChannel
   protected def writingTimeout: Long
   protected def writingTimeoutUnit: TimeUnit
+
+  protected def tailCalls: MaybeTailCalls[TailRec]
 
   @tailrec
   final def flush() {
@@ -95,7 +110,7 @@ trait SocketWritingQueue {
   /**
    * 关闭`SocketWritingQueue`.
    * 如果存在正在发送的数据，当这些数据发送完时，底层套接字才会真正被关闭。
-   * 如果多次调用`close()`，只有第一次调用有效，后面几次会被忽略
+   * 如果多次调用`shutDown()`，只有第一次调用有效，后面几次会被忽略
    */
   @tailrec
   final def shutDown() {
@@ -119,7 +134,7 @@ trait SocketWritingQueue {
           shutDown()
         }
       case SocketWritingQueue.Running(buffers) =>
-        val newState = SocketWritingQueue.Closing(Nil)
+        val newState = SocketWritingQueue.Closing(buffers)
         if (!state.compareAndSet(oldState, newState)) {
           // retry
           shutDown()
@@ -130,16 +145,16 @@ trait SocketWritingQueue {
     }
   }
 
-  private val writeHandler = new CompletionHandler[java.lang.Long, Function1[Long, Unit]] {
+  private val writeHandler = new CompletionHandler[java.lang.Long, Long => TailRec[Unit]] {
     override final def completed(
       bytesWritten: java.lang.Long,
-      continue: Function1[Long, Unit]) {
-      continue(bytesWritten.longValue)
+      continue: Long => TailRec[Unit]) {
+      tailCalls.result(continue(bytesWritten.longValue))
     }
 
     override final def failed(
       throwable: Throwable,
-      continue: Function1[Long, Unit]) {
+      continue: Long => TailRec[Unit]) {
       if (throwable.isInstanceOf[IOException]) {
         interrupt()
       } else {
@@ -149,7 +164,7 @@ trait SocketWritingQueue {
   }
 
   private def writeChannel(buffers: Array[ByteBuffer]): Long @suspendable = {
-    shift { (continue: Function1[Long, Unit]) =>
+    shift { (continue: Function1[Long, TailRec[Unit]]) =>
       try {
         socket.write(
           buffers,
@@ -164,6 +179,7 @@ trait SocketWritingQueue {
           // 本身不处理，关闭socket通知读线程来处理
           interrupt()
       }
+      tailCalls.done()
     }
   }
 
@@ -216,7 +232,7 @@ trait SocketWritingQueue {
   }
 
   private def startWriting(buffers: Array[ByteBuffer]) {
-    reset {
+    tailCalls.result(reset {
       val bytesWritten = writeChannel(buffers)
       val nextIndex = buffers indexWhere { _.hasRemaining }
       val remainingBuffers = nextIndex match {
@@ -225,7 +241,8 @@ trait SocketWritingQueue {
           buffers.view(nextIndex, buffers.length).iterator
       }
       writeMore(remainingBuffers)
-    }
+      tailCalls.done()
+    })
   }
 
   /**

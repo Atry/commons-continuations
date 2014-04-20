@@ -16,12 +16,16 @@
 
 package com.dongxiguo.commons.continuations
 
+import scala.language.higherKinds
 import scala.util.continuations._
 import scala.collection.immutable.Queue
 
-trait SuspendableGuard[Self] { self: Self =>
+trait SuspendableGuard[TailRec[+X], Self] { self: Self =>
+  private type suspendable = cps[TailRec[Unit]]
 
-  private val queue = new SuspendableFunctionQueue
+  implicit protected def tailCalls: MaybeTailCalls[TailRec]
+
+  private val queue = new SuspendableFunctionQueue[TailRec]
 
   type Task = Self => Any
 

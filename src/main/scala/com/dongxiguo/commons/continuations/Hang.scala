@@ -20,6 +20,7 @@ package com.dongxiguo.commons.continuations
  * 挂起当前Continuation.
  * @example shift(Hang)
  */
+@deprecated("Use [[MaybeTailCalls.hang]] instread.", "1.0.0")
 object Hang extends ((Nothing => Unit) => Unit) {
   override def apply(neverContinue: Nothing => Unit) {}
 }

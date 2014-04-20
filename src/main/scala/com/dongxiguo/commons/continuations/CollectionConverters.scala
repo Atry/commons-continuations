@@ -16,16 +16,19 @@
 
 package com.dongxiguo.commons.continuations
 
+import scala.language.higherKinds
 import scala.annotation._
 import scala.util.continuations._
 import scala.collection._
 import java.util.concurrent.atomic._
 
 object CollectionConverters {
-  final class SequentialSuspendableIterable[+A](underlying: Iterable[A]) {
+  final class SequentialSuspendableIterable[TailRec[+X]: MaybeTailCalls, +A](underlying: Iterable[A]) {
+    private type suspendable = cps[TailRec[Unit]]
+    
     final def seq = this
 
-    final def par = new ParallelSuspendableIterable(underlying)
+    final def par = new ParallelSuspendableIterable[TailRec, A](underlying)
 
     final def filter(p: A => Boolean @suspendable): List[A] @suspendable = {
       val i = underlying.iterator
@@ -57,15 +60,17 @@ object CollectionConverters {
     }
   }
 
-  final class ParallelSuspendableIterable[+A](underlying: Iterable[A])
+  final class ParallelSuspendableIterable[TailRec[+X]: MaybeTailCalls, +A](underlying: Iterable[A])
     extends Parallel {
+    private type suspendable = cps[TailRec[Unit]]
+
     final def par = this
 
-    final def seq = new SequentialSuspendableIterable(underlying)
+    final def seq = new SequentialSuspendableIterable[TailRec, A](underlying)
 
     final def filter(p: A => Boolean @suspendable): List[A] @suspendable =
       shift(
-        new AtomicInteger(1) with ((List[A] => Unit) => Unit) {
+        new AtomicInteger(1) with ((List[A] => TailRec[Unit]) => TailRec[Unit]) {
           private val results = new AtomicReference[List[A]](Nil)
 
           @tailrec
@@ -76,40 +81,48 @@ object CollectionConverters {
             }
           }
 
-          override final def apply(continue: List[A] => Unit) {
+          override final def apply(continue: List[A] => TailRec[Unit]): TailRec[Unit] = {
             for (element <- underlying) {
               super.incrementAndGet()
-              reset {
+              MaybeTailCalls.result(reset {
                 val pass = p(element)
                 if (pass) {
                   add(element)
                 }
                 if (super.decrementAndGet() == 0) {
-                  continue(results.get)
+                  MaybeTailCalls.tailcall(continue(results.get))
+                } else {
+                  MaybeTailCalls.done()
                 }
-              }
+              })
             }
             if (super.decrementAndGet() == 0) {
-              continue(results.get)
+              MaybeTailCalls.tailcall(continue(results.get))
+            } else {
+              MaybeTailCalls.done()
             }
           }
         })
 
     final def foreach[U](f: A => U @suspendable): Unit @suspendable =
       shift(
-        new AtomicInteger(1) with ((Unit => Unit) => Unit) {
-          override final def apply(continue: Unit => Unit) {
+        new AtomicInteger(1) with ((Unit => TailRec[Unit]) => TailRec[Unit]) {
+          override final def apply(continue: Unit => TailRec[Unit]): TailRec[Unit] = {
             for (element <- underlying) {
               super.incrementAndGet()
-              reset {
+              MaybeTailCalls.result(reset {
                 f(element)
                 if (super.decrementAndGet() == 0) {
-                  continue()
+                  MaybeTailCalls.tailcall(continue())
+                } else {
+                  MaybeTailCalls.done()
                 }
-              }
+              })
             }
             if (super.decrementAndGet() == 0) {
-              continue()
+              MaybeTailCalls.tailcall(continue())
+            } else {
+              MaybeTailCalls.done()
             }
           }
         })
@@ -119,18 +132,21 @@ object CollectionConverters {
         Array.empty[B]
       } else {
         shift(
-          new AtomicInteger(underlying.size) with ((Array[B] => Unit) => Unit) {
-            override final def apply(continue: Array[B] => Unit) {
+          new AtomicInteger(underlying.size) with ((Array[B] => TailRec[Unit]) => TailRec[Unit]) {
+            override final def apply(continue: Array[B] => TailRec[Unit]): TailRec[Unit] = {
               val results = new Array[B](super.get)
               for ((element, i) <- underlying.view.zipWithIndex) {
-                reset {
+                MaybeTailCalls.result(reset {
                   val result = f(element)
                   results(i) = result
                   if (super.decrementAndGet() == 0) {
-                    continue(results)
+                    MaybeTailCalls.tailcall(continue(results))
+                  } else {
+                    MaybeTailCalls.done()
                   }
-                }
+                })
               }
+              MaybeTailCalls.done()
             }
           })
       }
@@ -138,19 +154,19 @@ object CollectionConverters {
 
   final class AsParallelSuspendableIterable[+A](
     val underlying: Iterable[A]) extends AnyVal {
-    final def asSuspendable = new SequentialSuspendableIterable(underlying)
+    final def asSuspendable[TailRec[+X]: MaybeTailCalls] = new SequentialSuspendableIterable[TailRec, A](underlying)
   }
 
   final class AsSequentialSuspendableIterable[+A](
     val underlying: Iterable[A]) extends AnyVal {
-    final def asSuspendable = new SequentialSuspendableIterable(underlying)
+    final def asSuspendable[TailRec[+X]: MaybeTailCalls] = new SequentialSuspendableIterable[TailRec, A](underlying)
   }
 
   import language.implicitConversions
 
   implicit def iterableAsParallelSuspendableIterable[A](
     underlying: Iterable[A] with Parallel) =
-    new AsParallelSuspendableIterable[A](underlying.seq)
+    new AsParallelSuspendableIterable(underlying.seq)
 
   implicit def iterableAsSequentialSuspendableIterable[A](
     underlying: Iterable[A]) =

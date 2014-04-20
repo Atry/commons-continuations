@@ -16,6 +16,7 @@
 
 package com.dongxiguo.commons.continuations
 
+import scala.language.higherKinds
 import scala.util.continuations._
 import scala.collection.immutable.Queue
 
@@ -29,7 +30,7 @@ trait Guard[+Self] { self: Self =>
    * 向队列加入一个任务，并尽快返回。
    */
   @inline
-  final def post[U](task: Self => U) {
+  final def post(task: Self => Unit) {
     queue.post {
       task(self)
     }
@@ -42,11 +43,12 @@ trait Guard[+Self] { self: Self =>
    * 应当在一次`send`或`post`返回后再调用下一次。
    */
   @inline
-  final def send[U](task: Self => U): U @suspendable = {
-    shift { (continue: U => Unit) =>
+  final def send[TailRec[+X]: MaybeTailCalls, U](task: Self => U): U @cps[TailRec[Unit]] = {
+    shift { (continue: U => TailRec[Unit]) =>
       queue.post {
-        continue(task(self))
+        MaybeTailCalls.result(continue(task(self)))
       }
+      MaybeTailCalls.done()
     }
   }
 }

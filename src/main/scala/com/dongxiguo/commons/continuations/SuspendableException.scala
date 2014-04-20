@@ -16,17 +16,18 @@
 
 package com.dongxiguo.commons.continuations
 
+import scala.language.higherKinds
 import scala.util.continuations._
 import scala.util.control.Exception.Catcher
 
 object SuspendableException {
 
-  final def blockingWait[U](body: Catcher[Unit] => U @suspendable): U = {
+  final def blockingWait[TailRec[+X]: MaybeTailCalls, U](body: Catcher[Unit] => U @cps[TailRec[Unit]]): U = {
     val lock = new AnyRef
     @volatile
     var optionalResult: Option[Either[Throwable, U]] = None
     lock.synchronized {
-      reset {
+      MaybeTailCalls.result(reset {
         val catcher: Catcher[Unit] = {
           case e: Throwable =>
             lock.synchronized {
@@ -53,8 +54,9 @@ object SuspendableException {
             }
           }
         }
-      }
-      if (optionalResult == None) {
+        MaybeTailCalls.done()
+      })
+      while (optionalResult == None) {
         lock.wait()
       }
     }
@@ -72,26 +74,30 @@ object SuspendableException {
    * @param body 可能抛出异常的代码块
    * @param catcher 异常处理函数。
    */
-  final def tryWithCatcher[A](body: => A)(
-    implicit catcher: Catcher[Unit]): A @suspendable =
-    shift(new ((A => Unit) => Unit) {
-      override final def apply(continue: A => Unit) {
-        continue(try {
-          body
-        } catch {
-          case e if catcher.isDefinedAt(e) =>
-            catcher(e)
-            return
-        })
-      }
-    })
-
-  final def catchUntilNextSuspendableFunction[Result](r: Result)(implicit catcher: Catcher[Unit]): Result @suspendable = {
-    shift { (continue: Result => Unit) =>
-      try {
-        continue(r)
+  final def tryWithCatcher[TailRec[+X]: MaybeTailCalls, A](body: => A)(
+    implicit catcher: Catcher[Unit]): A @cps[TailRec[Unit]] =
+    shift { (continue: A => TailRec[Unit]) =>
+      val optionalResult = try {
+        Some(body)
       } catch {
-        case e if catcher.isDefinedAt(e) => catcher(e)
+        case e if catcher.isDefinedAt(e) =>
+          catcher(e)
+          None
+      }
+      optionalResult match {
+        case Some(result) => MaybeTailCalls.tailcall(continue(result))
+        case None => MaybeTailCalls.done()
+      }
+    }
+
+  final def catchUntilNextSuspendableFunction[TailRec[+X]: MaybeTailCalls, Result](r: Result)(implicit catcher: Catcher[Unit]): Result @cps[TailRec[Unit]] = {
+    shift { (continue: Result => TailRec[Unit]) =>
+      try {
+        MaybeTailCalls.tailcall(continue(r))
+      } catch {
+        case e if catcher.isDefinedAt(e) =>
+          catcher(e)
+          MaybeTailCalls.done()
       }
     }
   }

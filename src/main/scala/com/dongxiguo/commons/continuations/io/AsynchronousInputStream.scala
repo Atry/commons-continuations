@@ -17,6 +17,7 @@
 package com.dongxiguo.commons.continuations
 package io
 
+import scala.language.higherKinds
 import scala.util.control.Exception.Catcher
 import java.nio.channels._
 import scala.annotation.tailrec
@@ -32,14 +33,14 @@ object AsynchronousInputStream {
   implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
   import formatter._
 
-  private[AsynchronousInputStream] final class ReadHandler[A](
-    implicit catcher: Catcher[Unit]) extends CompletionHandler[A, Function1[A, Unit]] {
+  private[AsynchronousInputStream] final class ReadHandler[TailRec[+X]: MaybeTailCalls, A](
+    implicit catcher: Catcher[Unit]) extends CompletionHandler[A, A => TailRec[Unit]] {
     override final def completed(
       bytesRead: A,
-      continue: Function1[A, Unit]) {
+      continue: A => TailRec[Unit]) {
       logger.finer("ReadHandler.completed")
       try {
-        continue(bytesRead)
+        MaybeTailCalls.result(continue(bytesRead))
       } catch {
         case e: Exception =>
           logger.severe(
@@ -50,7 +51,7 @@ object AsynchronousInputStream {
 
     override final def failed(
       throwable: Throwable,
-      continue: Function1[A, Unit]) {
+      continue: A => TailRec[Unit]) {
       logger.finer("ReadHandler.failed")
       if (catcher.isDefinedAt(throwable)) {
         try {
@@ -68,8 +69,8 @@ object AsynchronousInputStream {
 
   }
 
-  final def apply(s: AsynchronousSocketChannel, t: Long, tu: TimeUnit, bs: Int = 1500) =
-    new AsynchronousInputStream {
+  final def apply[TailRec[+X]: MaybeTailCalls](s: AsynchronousSocketChannel, t: Long, tu: TimeUnit, bs: Int = 1500) =
+    new AsynchronousInputStream[TailRec] {
       override protected final def readingTimeout: Long = t
 
       override protected final def readingTimeoutUnit: TimeUnit = tu
@@ -79,7 +80,9 @@ object AsynchronousInputStream {
 
 }
 
-abstract class AsynchronousInputStream extends InputStream {
+abstract class AsynchronousInputStream[TailRec[+X]: MaybeTailCalls] extends InputStream {
+  private type suspendable = cps[TailRec[Unit]]
+  
   import AsynchronousInputStream._
   import formatter._
 
@@ -208,7 +211,7 @@ abstract class AsynchronousInputStream extends InputStream {
     bytesToRead: Long, buffers: Array[ByteBuffer],
     offset: Int, length: Int)(
       implicit catcher: Catcher[Unit]): Unit @suspendable = {
-    val n = shift { (continue: java.lang.Long => Unit) =>
+    val n = shift { (continue: java.lang.Long => TailRec[Unit]) =>
       logger.finer(
         fast"Read from socket for ${readingTimeout} ${readingTimeoutUnit}")
       try {
@@ -217,10 +220,11 @@ abstract class AsynchronousInputStream extends InputStream {
           offset, length,
           readingTimeout, readingTimeoutUnit,
           continue,
-          new ReadHandler[java.lang.Long])
+          new ReadHandler[TailRec, java.lang.Long])
       } catch {
         case e if catcher.isDefinedAt(e) => catcher(e)
       }
+      MaybeTailCalls.done();
     }
     if (n >= 0 && n < bytesToRead) {
       val newOffset = buffers.indexWhere(
@@ -236,7 +240,7 @@ abstract class AsynchronousInputStream extends InputStream {
   @throws(classOf[IOException])
   private def readChannel(bytesToRead: Int, buffer: ByteBuffer)(
     implicit catcher: Catcher[Unit]): Unit @suspendable = {
-    val n = shift { (continue: java.lang.Integer => Unit) =>
+    val n = shift { (continue: java.lang.Integer => TailRec[Unit]) =>
       logger.finer {
         fast"Read from socket for ${readingTimeout.toString}${readingTimeoutUnit.toString}"
       }
@@ -245,10 +249,11 @@ abstract class AsynchronousInputStream extends InputStream {
           buffer,
           readingTimeout, readingTimeoutUnit,
           continue,
-          new ReadHandler[java.lang.Integer])
+          new ReadHandler[TailRec, java.lang.Integer])
       } catch {
         case e if catcher.isDefinedAt(e) => catcher(e)
       }
+      MaybeTailCalls.done()
     }
     if (n >= 0 && n < bytesToRead) {
       readChannel(bytesToRead - n, buffer)
@@ -306,31 +311,30 @@ abstract class AsynchronousInputStream extends InputStream {
     val c = capacity
     if (bytesRequired > c) {
       logger.finest("Read from socket.")
-      externalRead(bytesRequired - c) {
+      val () = externalRead(bytesRequired - c) {
         case e: Exception =>
           _available = math.min(bytesRequired, capacity)
-          logger.severe(e)
+          logger.fine(e)
           SuspendableException.catchOrThrow(e)
       }
       val newCapacity = capacity
       if (bytesRequired > newCapacity) {
         _available = newCapacity
         val e = new EOFException
-        logger.warning(e)
+        logger.fine(e)
         SuspendableException.catchOrThrow(e)
-        shift(Hang)
+        MaybeTailCalls.hang
       } else {
         _available = bytesRequired
       }
     } else {
       logger.finest("Bytes avaiable is enough. Don't read from socket.")
       _available = bytesRequired
-      shiftUnit0[Unit, Unit]()
+      shiftUnit0[Unit, TailRec[Unit]]()
     }
     logger.finer {
       fast"Bytes avaiable is ${_available.toString} now."
     }
-    SuspendableException.catchUntilNextSuspendableFunction()
 
   }
 
@@ -349,7 +353,7 @@ abstract class AsynchronousInputStream extends InputStream {
     val c = capacity
     if (bytesRequired > c) {
       logger.finest("Read from socket.")
-      externalRead(bytesRequired - c) {
+      val () = externalRead(bytesRequired - c) {
         case e: Exception =>
           _available = math.min(bytesRequired, capacity)
           logger.severe(e)
@@ -359,7 +363,7 @@ abstract class AsynchronousInputStream extends InputStream {
     } else {
       logger.finest("Bytes avaiable is enough. Don't read from socket.")
       _available = bytesRequired
-      shiftUnit0[Unit, Unit]()
+      shiftUnit0[Unit, TailRec[Unit]]()
     }
     logger.finer {
       fast"Bytes avaiable is ${_available.toString} now."

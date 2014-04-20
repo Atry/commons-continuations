@@ -1,15 +1,17 @@
 package com.dongxiguo.commons.continuations
 
+import scala.language.higherKinds
 import java.util.concurrent.atomic.AtomicInteger
 import scala.util.continuations._
 import scala.util.control.Exception.Catcher
 import scala.annotation.tailrec
 import java.util.concurrent.atomic.AtomicBoolean
 
-final class OperationCounter extends AtomicInteger(0) {
+final class OperationCounter[TailRec[+X]: MaybeTailCalls] extends AtomicInteger(0) {
+  private type suspendable = cps[TailRec[Unit]]
 
   @volatile
-  private var shutdownHandler: Unit => Unit = _
+  private var shutdownHandler: Unit => TailRec[Unit] = _
 
   @tailrec
   final def beforeOperation() {
@@ -31,7 +33,7 @@ final class OperationCounter extends AtomicInteger(0) {
 
   final def afterOperation() {
     if (super.decrementAndGet() == Int.MinValue) {
-      shutdownHandler()
+      MaybeTailCalls.result(shutdownHandler())
     }
   }
 
@@ -46,7 +48,7 @@ final class OperationCounter extends AtomicInteger(0) {
     } else {
       SuspendableException.catchOrThrow(throw new IllegalStateException(
         "An operation cannot be finished more than once!"))
-      shift(Hang)
+      MaybeTailCalls.hang
     }
   }
 
@@ -58,28 +60,34 @@ final class OperationCounter extends AtomicInteger(0) {
 
   final def shutDown()(implicit catcher: Catcher[Unit]): Unit @suspendable = {
     shift {
-      new Function1[Unit => Unit, Unit] {
+      new ((Unit => TailRec[Unit]) => TailRec[Unit]) {
         @tailrec
-        override def apply(continue: Unit => Unit) {
+        override def apply(continue: Unit => TailRec[Unit]): TailRec[Unit] = {
           val n = OperationCounter.super.get
           if (n < 0) {
             SuspendableException.catchOrThrow(new ShuttedDownException(
               "ShutDownable.shutdown() can be invoked only once!"))
-            return
-          }
-          shutdownHandler = continue
-          if (OperationCounter.super.compareAndSet(n, n + Int.MinValue)) {
-            if (n == 0) {
-              try {
-                continue()
-              } catch {
-                case e if catcher.isDefinedAt(e) =>
-                  catcher(e)
-              }
-            }
+            MaybeTailCalls.done()
           } else {
-            apply(continue)
+            shutdownHandler = continue
+            if (OperationCounter.super.compareAndSet(n, n + Int.MinValue)) {
+              if (n == 0) {
+                try {
+                  MaybeTailCalls.tailcall(continue())
+                } catch {
+                  case e if catcher.isDefinedAt(e) =>
+                    catcher(e)
+                    MaybeTailCalls.done()
+                }
+              } else {
+                // 挂起
+                MaybeTailCalls.done()
+              }
+            } else {
+              apply(continue)
+            }
           }
+
         }
       }
     }
