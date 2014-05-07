@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 杨博 (Yang Bo)
+ * Copyright 2012-2014 杨博 (Yang Bo)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,13 +23,13 @@ import java.util.concurrent.atomic.AtomicReference
 object AutoConsumableQueue {
   sealed abstract class State[+Task]
 
-  final case object Idle extends State[Nothing]
+  private[AutoConsumableQueue] final case object Idle extends State[Nothing]
 
-  final case object ShuttedDown extends State[Nothing]
+  private[AutoConsumableQueue] final case object ShuttedDown extends State[Nothing]
 
-  final case class Running[+Task] private[AutoConsumableQueue] (tasks: List[Task]) extends State[Task]
+  private[AutoConsumableQueue] final case class Running[+Task] private[AutoConsumableQueue] (tasks: List[Task]) extends State[Task]
 
-  final case class ShuttingDown[+Task] private[AutoConsumableQueue] (tasks: List[Task]) extends State[Task]
+  private[AutoConsumableQueue] final case class ShuttingDown[+Task] private[AutoConsumableQueue] (tasks: List[Task]) extends State[Task]
 }
 
 abstract class AutoConsumableQueue[Task] extends AtomicReference[State[Task]](Idle) {
