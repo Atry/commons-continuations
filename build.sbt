@@ -63,7 +63,7 @@ libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.5"
 
 libraryDependencies += "com.dongxiguo.zero-log" %% "context" % "0.3.5"
 
-version := "0.2.2-SNAPSHOT"
+version := "0.2.2"
 
 publishTo <<= (isSnapshot) { isSnapshot: Boolean =>
   if (isSnapshot)
