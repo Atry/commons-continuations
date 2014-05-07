@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 杨博 (Yang Bo)
+ * Copyright 2012-2014 杨博 (Yang Bo)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,17 @@ organization := "com.dongxiguo"
 
 organizationHomepage := None
 
+libraryDependencies <++= scalaBinaryVersion { bv =>
+  bv match {
+    case "2.10" => {
+      Seq()
+    }
+    case _ => {
+      Seq("org.scala-lang.plugins" % s"scala-continuations-library_$bv" % "1.0.1")
+    }
+  }
+}
+
 libraryDependencies <+= scalaVersion { sv =>
   "org.scala-lang" % "scala-reflect" % sv
 }
@@ -26,8 +37,12 @@ libraryDependencies <+= scalaVersion { sv =>
 libraryDependencies +=
   "com.novocode" % "junit-interface" % "0.7" % "test->default"
 
-libraryDependencies <+= scalaVersion {v =>
-  compilerPlugin("org.scala-lang.plugins" % "continuations" % v)
+libraryDependencies <+= scalaVersion { sv =>
+  if (sv.startsWith("2.10.")) {
+    compilerPlugin("org.scala-lang.plugins" % "continuations" % sv)
+  } else {
+    compilerPlugin("org.scala-lang.plugins" % s"scala-continuations-plugin_$sv" % "1.0.1")
+  }
 }
 
 autoCompilerPlugins := true
@@ -42,9 +57,11 @@ scalacOptions += "-deprecation"
 
 scalacOptions ++= Seq("-Xelide-below", "FINEST")
 
-crossScalaVersions := Seq("2.10.1")
+crossScalaVersions := Seq("2.10.4", "2.11.0")
 
-libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.3"
+libraryDependencies += "com.dongxiguo" %% "zero-log" % "0.3.5"
+
+libraryDependencies += "com.dongxiguo.zero-log" %% "context" % "0.3.5"
 
 version := "0.2.2-SNAPSHOT"
 

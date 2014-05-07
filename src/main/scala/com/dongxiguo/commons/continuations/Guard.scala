@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 杨博 (Yang Bo)
+ * Copyright 2012-2014 杨博 (Yang Bo)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,8 +22,6 @@ import scala.collection.immutable.Queue
 trait Guard[+Self] { self: Self =>
 
   private val queue = new FunctionQueue
-
-  type Task = Self => Any
 
   /**
    * 向队列加入一个任务，并尽快返回。

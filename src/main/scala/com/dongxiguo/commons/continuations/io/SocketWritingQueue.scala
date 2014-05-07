@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 杨博 (Yang Bo)
+ * Copyright 2012-2014 杨博 (Yang Bo)
  * 
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,7 +30,7 @@ protected object SocketWritingQueue {
   implicit private val (logger, formatter, appender) = ZeroLoggerFactory.newLogger(this)
   import formatter._
 
-  private[SocketWritingQueue] sealed abstract class State extends NotNull
+  private[SocketWritingQueue] sealed abstract class State
 
   private final case class Idle(
     val buffers: List[ByteBuffer]) extends State
