@@ -168,7 +168,7 @@ abstract class AsynchronousInputStream extends InputStream {
       } else {
         _available = _available - remaining
         buffers.dequeue()
-        skip(len, count + remaining)
+        skip(len - remaining, count + remaining)
       }
     }
   }
