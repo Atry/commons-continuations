@@ -108,7 +108,7 @@ abstract class AsynchronousInputStream extends InputStream {
         -1
       } else {
         val buffer = buffers.front
-        val result = buffer.get
+        val result = buffer.get & 0xFF
         if (buffer.remaining == 0) {
           buffers.dequeue()
         }
