@@ -102,18 +102,24 @@ abstract class AsynchronousInputStream extends InputStream {
 
   private var _available: Int = _
 
+  @tailrec
   override final def read(): Int = {
     if (_available > 0) {
       if (buffers.isEmpty) {
         -1
       } else {
         val buffer = buffers.front
-        val result = buffer.get & 0xFF
-        if (buffer.remaining == 0) {
+        if (buffer.remaining() == 0) {
           buffers.dequeue()
+          read()
+        } else {
+          val result = buffer.get & 0xFF
+          if (buffer.remaining == 0) {
+            buffers.dequeue()
+          }
+          _available -= 1
+          result
         }
-        _available -= 1
-        result
       }
     } else {
       -1
