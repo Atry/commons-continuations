@@ -19,7 +19,7 @@ package io
 
 import scala.util.control.Exception.Catcher
 import java.nio.channels._
-import scala.annotation.tailrec
+import scala.annotation.tailrecb
 import scala.util.continuations._
 import java.io.InputStream
 import java.io.EOFException
@@ -284,7 +284,7 @@ abstract class AsynchronousInputStream extends InputStream {
         buffer0.flip()
         buffers.enqueue(buffer0)
         buffer1.flip()
-        buffers.enqueue(buffer0, buffer1)
+        buffers.enqueue(buffer1)
       } else {
         readChannel(bytesToRead, buffer0)
         buffer0.flip()
